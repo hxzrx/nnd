@@ -51,6 +51,10 @@
         collect
         (loop for j in v2
               collect (* i j))))
+
+(defun basic-list-inner-product (vec1 vec2)
+  "inner for two lists, eg. '(1 2 3) '(4 5 6)"
+  (reduce #'+ (mapcar #'* vec1 vec2)))
         
 ;;;; all the vectors and matrices are lists of lists, even for a row vector, eg. '((1 2 3))
 ;;;; addition
@@ -155,10 +159,9 @@
         (size2 (lists-length-equal matrix2)))
     (assert (and size1 size2))
     (assert (= (cdr size1) (car size2)))
-    (reduce #'matrix-add
-            (loop for row in matrix1
-                  for col in (transpose matrix2)
-                  collect (basic-list-list* row col)))))
+    (loop for row in matrix1
+          collect (loop for col in (transpose matrix2)
+                        collect (basic-list-inner-product row col)))))
 
 
 ;;;; inner produce
