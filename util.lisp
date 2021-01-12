@@ -70,8 +70,16 @@
   "find the row id of the matrix that has the greast absolute value under the pivot place"
   (+ (posioning-with-predicate (nthcdr nth-pivot matrix) :key #'(lambda (x) (abs (nth nth-pivot x))) :test #'>)
      nth-pivot))
-  
 
+(defun zeros-row-p (lst)
+  "check if lst is of all zeros"
+  (if (null lst) t
+      (and (= (car lst) 0) (zeros-row-p (cdr lst)))))
+  
+(defun zeros-p (matrix)
+  "check if all of the elements are 0"
+  (if (null matrix) t
+      (and (zeros-row-p (car matrix)) (zeros-p (cdr matrix)))))
 
 ;;;; utils for transfer functions
 (defun collect-transfer (trans-fun col-vec)
