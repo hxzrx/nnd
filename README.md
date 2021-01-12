@@ -1,5 +1,6 @@
-Common Lisp code for the answers in "Neural Network Design, 2nd, Martin T. Hagan".
+<<神经网络设计>>第二版
+Neural Network Design, 2nd, Martin T. Hagan
+Common Lisp演示代码。
+包括必要数学库的简单实现，效率不高，但适合教学。
 
-The required linear algebra libs were built from the scratch with lists for the basic data structure, so they had low efficiency but well they were well represented and good for instructing.
-
-
+把所有努力都献给我最爱的师妹！

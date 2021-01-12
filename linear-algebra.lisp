@@ -173,9 +173,7 @@
   (assert (list-length-equal (car a) (car b)))
   (assert (list-check-type (car a) 'number))
   (assert (list-check-type (car b) 'number))
-  (loop for i in (car a)
-        for j in (car b)
-        sum (* i j)))
+  (basic-list-inner-product a b))
 
 ;;;; matrix size
 (defgeneric matrix-size (m)
