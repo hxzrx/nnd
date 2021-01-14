@@ -88,3 +88,17 @@
   (loop for row in col-vec
         collect (loop for elem in row
                       collect (funcall trans-fun elem))))
+
+(defun print-matrix (m)
+  "print matrix"
+  (format  t "~{~{~d  ~}~&~}~%~%" m))
+
+(defun list-given-place-1-others-0 (lst k &optional (i 0) (epsilon 0.000001))
+  "check if the kth place of lst is 1, and 0 otherwise
+   lst has the form '(1 2 3), and 0 <= k <= (length lst)
+  "
+  (if (null lst) t
+      (and (if (= i k)
+               (< (abs (1- (car lst))) epsilon)
+               (< (abs (car lst)) epsilon))
+           (list-given-place-1-others-0 (cdr lst) k (1+ i) epsilon))))

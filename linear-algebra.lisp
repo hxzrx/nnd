@@ -169,11 +169,14 @@
   (:documentation "inner product of vector a and b"))
 
 (defmethod inner-product ((a list) (b list))
-  "inner product, '((1 2 3)) dot '((1 2 3))"
+  "inner product, row vetors and column vectors are allowable, row vector is only for simplicity.
+   '((1 2 3)) dot '((1 2 3)), or '((1) (2) (3)) dot '((1) (2) (3)), the results are the same"
   (assert (list-length-equal (car a) (car b)))
-  (assert (list-check-type (car a) 'number))
-  (assert (list-check-type (car b) 'number))
-  (basic-list-inner-product a b))
+  ;(assert (list-check-type (car a) 'number))
+  ;;(assert (list-check-type (car b) 'number))
+  (if (null (cdar a)) ;; if column vector
+      (basic-list-inner-product (car (transpose a)) (car (transpose b)))
+      (basic-list-inner-product (car a) (car b)))) ;row vector
 
 ;;;; matrix size
 (defgeneric matrix-size (m)
@@ -252,7 +255,7 @@
 
 ;;;; row elimination, up down, and get an upper triangle matrix
 (defgeneric row-elimination-up-down (matrix)
-  (:documentation "row elimination, the resule is an upper triangle"))
+  (:documentation "row elimination, the result is an upper triangle"))
 
 (defun row-elimination-up-down% (matrix nth-pivot)
   "row elimination, elimination for a column!"
@@ -274,19 +277,63 @@
       (row-elimination-up-down%% (row-elimination-up-down% matrix elim-idx) square (incf elim-idx))))
   
 (defmethod row-elimination-up-down ((matrix list))
-  "row elimination, for all columns!"
+  "row elimination, for all columns! the result is an upper triangle"
   (let ((size (matrix-size matrix)))
     (row-elimination-up-down%% matrix (min (car size) (cdr size)))))
 
 
 ;;;; row elimination, down to up, the input matrix is an upper triangle matrix, and the result is an diag matrix
 (defgeneric row-elimination-down-up (matrix)
-  (:documentation "row elimination, the resule is an diag triangle matrix"))
+  (:documentation "row elimination, the resule is an diag triangle matrix, 
+                   this should be restricted that the matrix is already an upper triangle"))
 
-;;TO DO
-
-
+(defun row-elimination-down-up% (matrix pivot-id)
+  "for the special case that row-num <= column-num"
+  ;;(print-matrix matrix)
+  (if (= pivot-id -1)
+      matrix
+      (row-elimination-down-up% 
+       (let* ((pivot-row (nth pivot-id matrix))
+              (pivot-val (nth pivot-id pivot-row))
+              (row-num (length matrix)))
+         ;;(format t "~&pivot id: ~d, row: ~d, val: ~d~%" pivot-id pivot-row pivot-val)
+         (loop for r from 0 below row-num
+               collect (progn
+                         (if (>= r pivot-id)
+                             (nth r matrix)
+                             (if (= pivot-val 0)
+                                 pivot-row
+                                 (basic-list-list- (nth r matrix)
+                                                   (basic-list-scalar* pivot-row
+                                                                       (/ (nth pivot-id (nth r matrix)) pivot-val))))))))
+         (1- pivot-id))))
   
+(defmethod row-elimination-down-up ((matrix list))
+  "row elimination, down to top, this step will get an lower triangle.
+   this will only affect on the max top-left square submatrix"
+  (let ((size (matrix-size matrix)))
+    (if (<= (car size) (cdr size)) ; row <= col
+        (row-elimination-down-up% matrix (1- (car size)))
+        (append (row-elimination-down-up% (loop for row in matrix
+                                                for i below (cdr size)
+                                                collect row)
+                                          (1- (cdr size)))
+                (nthcdr (cdr size) matrix)))))
+
+(defgeneric matrix-divided-by-pivot (matrix)
+  (:documentation "after the elimination from down to top, we should make the pivots ones"))
+
+(defmethod matrix-divided-by-pivot ((matrix list))
+  "divide each row by its pivot.
+   when the matrix is a diagonal, the result will be an identity matrix"
+  (let* ((size (matrix-size matrix)))
+    (loop for row in matrix
+          for i from 0
+          collect (progn (if (< i (min (car size) (cdr size)))
+                             (cond ((= (nth i row) 0) row)
+                                   (t (basic-list-scalar* row (/ 1 (nth i row)))))
+                             row)))))
+
 ;;;; make an augmented matrix
 (defgeneric make-augmented (matrix1 matrix2)
   (:documentation "make the augmented matrix with matrix1 and matrix2, 
@@ -299,13 +346,30 @@
         for row2 in matrix2
         collect (append row1 row2)))
 
+(defgeneric matrix-reverse (matrix)
+  (:documentation "calc the reverse of matrix"))
+
+(defmethod matrix-reverse ((matrix list))
+  "calc the reverse of matrix"
+  (let ((size (matrix-size matrix)))
+    (assert (= (car size) (cdr size)))
+    (let* ((augmented (make-augmented matrix (eye (car size))))
+           (upper-triangle (row-elimination-up-down augmented))
+           (diag-matrix (row-elimination-down-up upper-triangle))
+           (left-eye (matrix-divided-by-pivot diag-matrix)))
+      (if (eye-p (matrix-left-columns left-eye (car size)))
+          (matrix-right-columns left-eye (car size))
+          nil))))
 
 ;;;; Gauss-Jordan Elimination
 (defgeneric gauss-jordan-elimination (matrix)
   (:documentation "Calculating 1/A by Gauss-Jordan Elimination"))
 
- 
-;;;; construct a matrix
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; construct a special matrix
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;; construct a matrix with all zero elements
 (defgeneric make-zeros (m &optional n)
   (:documentation "return a matrix which elements are all 0's. If n is nil, return a row vector such as '((0 0 0))"))
 
@@ -351,6 +415,22 @@
         collect (loop for col below n
                       collect (if (= row col) 1 0))))
 
+(defmethod eye-p% (matrix idx &optional (epsilon 0.000001))
+  "for real matrix"
+  (if (null matrix) t
+      (and (list-given-place-1-others-0 (car matrix) idx 0 epsilon)
+           (eye-p% (cdr matrix) (1+ idx) epsilon))))
+      
+(defgeneric eye-p (matrix)
+  (:documentation "check if m is an identity matrix"))
+
+(defmethod eye-p ((matrix list))
+  "check if m is an identity matrix"
+  (let ((size (matrix-size matrix)))
+    (assert (= (car size) (cdr size)))
+    (eye-p% matrix 0)))
+
+  
 (defgeneric diag (&rest diags)
   (:documentation "make a diagonal matrix"))
 
@@ -361,7 +441,6 @@
           for diag in diags
           collect (loop for col below n
                         collect (if (= row col) diag 0)))))
-
 
 ;;;; make a m by n random matrix
 (defgeneric rand-matrix (m n &optional min max)
@@ -383,7 +462,7 @@
                              collect (+ min (random (- max min))))))
         (t (error "max < min"))))
                           
-            
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;            
 
 ;;;; determinant
 (defgeneric make-submatrix (matrix i j)
@@ -398,7 +477,37 @@
                         for col-idx from 0
                         when (not (= col-idx j))
                           collect col)))
-        
+
+(defgeneric matrix-left-columns (matrix k)
+  (:documentation "the submatrix constructed of the left k columns of matrix"))
+
+(defmethod matrix-left-columns ((matrix list) (k integer))
+  "for a m by n matrix, return the submatrix constructed of the left k columns of the matrix, where 1<= k <= n"
+  (assert (and (> k 0) (<= k (length (car matrix)))))
+  (loop for row in matrix
+        collect
+        (loop for col   in   row
+              for c-idx from 0   below k
+              collect col)))
+
+(defgeneric matrix-right-columns (matrix k)
+  (:documentation "the submatrix constructed of the right k columns of matrix"))
+
+(defmethod matrix-right-columns ((matrix list) (k integer))
+  "for a m by n matrix, return the submatrix constructed of the left k columns of the matrix, where 1<= k <= n"
+  (let ((len (length (car matrix))))
+    (assert (and (> k 0) (<= k len)))
+    (loop for row in matrix
+          collect
+          (loop for col   in   row
+                for c-idx from 0
+                when (>= c-idx (- len k))
+                  collect col))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; determinant
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defgeneric det% (matrix size)
   (:documentation "return the determinant of a square matrix"))
 
@@ -423,17 +532,16 @@
     (assert size)
     (det% matrix size)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defgeneric matrix-trace (matrix)
   (:documentation "Trace (sum of diagonal elements) of matrix"))
 
 (defmethod matrix-trace ((matrix list))
   "trace of matrix"
-  (apply #'+ (mapcar #'car (loop for row    in   matrix
-                                 for row-id from 0
-                                 collect (loop for col    in   row
-                                               for col-id from 0
-                                               when (= row-id col-id)
-                                                 collect col)))))
+  (apply #'+ (loop for row    in   matrix
+                   for row-id from 0
+                   collect (nth row-id row))))
 
 ;;;; singular
 (defgeneric singular-p (square)
@@ -461,3 +569,27 @@
           (loop for i from 0 below m-size
                 collect (/ (det (replace-col square b i)) detA))
           nil))))
+
+
+;;;; norm
+(defgeneric norm (vec)
+  (:documentation "norm or a vector"))
+
+(defmethod norm ((vec list))
+  "norm or a column vector, vec is allowable for column vectors and row vectors"
+  (sqrt (inner-product vec vec)))
+
+
+;;;; normalize a vetor
+(defgeneric normalize-vector (vec)
+  (:documentation "normalize a vec so that it has length 1"))
+
+(defmethod normalize-vector ((vec list))
+  "normalize a vetor, both row vector and column vector are allowed"
+  (let ((norm^2 (inner-product vec vec))
+        (epsilon 0.00000001))
+    (if (< norm^2 epsilon)
+        (progn
+          (let ((size (matrix-size vec)))
+            (make-zeros (car size) (cdr size))))
+        (matrix-multiple-scalar vec (/ 1 (sqrt norm^2))))))
