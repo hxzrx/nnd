@@ -94,7 +94,7 @@
   (format  t "~{~{~d  ~}~&~}~%~%" m))
 
 (defun list-given-place-1-others-0 (lst k &optional (i 0) (epsilon 0.000001))
-  "check if the kth place of lst is 1, and 0 otherwise
+  "check if the kth place of lst is close to 1, and close to 0 otherwise
    lst has the form '(1 2 3), and 0 <= k <= (length lst)
   "
   (if (null lst) t
@@ -102,3 +102,9 @@
                (< (abs (1- (car lst))) epsilon)
                (< (abs (car lst)) epsilon))
            (list-given-place-1-others-0 (cdr lst) k (1+ i) epsilon))))
+
+(defun list-zeros-p (lst &optional (epsilon 0.000001))
+  "check if the elements of lst were close to zero"
+  (if (null lst) t
+      (and (< (abs (car lst)) epsilon)
+           (list-zeros-p (cdr lst) epsilon))))

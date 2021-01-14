@@ -381,6 +381,13 @@
             collect (loop for col below n
                           collect 0))))
 
+(defgeneric matrix-zeros-p (matrix)
+  (:documentation "check if the matrix's elemets are all zeros"))
+
+(defmethod matrix-zeros-p ((matrix list))
+  "check if the matrix's elemets are all zeros"
+  (every #' list-zeros-p matrix))
+
 (defgeneric make-ones (m &optional n)
   (:documentation "return a matrix which elements are all 1's. If n is nil, return a row vector such as '((1 1 1))"))
 
@@ -551,6 +558,19 @@
   "check if a square matrix is singular, if it's singular, return t, else nil"
   (assert (matrix-square-p square))
   (when (= (det square) 0) t))
+
+(defgeneric matrix-rank (matrix)
+  (:documentation "return the rank of the matrix"))
+
+(defmethod matrix-rank% (matrix &optional (rank 0))
+  (cond ((null matrix) rank)
+        ((list-zeros-p (car matrix)) rank)
+        (t (matrix-rank% (cdr matrix) (1+ rank)))))
+
+(defmethod matrix-rank ((matrix list))
+  "return the rank of the matrix"
+  (let ((lower-triangle (row-elimination-up-down matrix)))
+    (matrix-rank% lower-triangle)))
 
 
 ;;;; solve linear equations
