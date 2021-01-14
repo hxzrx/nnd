@@ -1,13 +1,11 @@
 ;;;; nnd-tests.asd
 
-(asdf:defsystem #:nnd-tests
-  :description "tests for nnd."
+(defsystem #:nnd-tests
   :author "He Xiang-zhi <xz.he@qq.com>"
-  :depends-on (
-               #:nnd
+  :license "MulanPSL-2.0"
+  :depends-on (#:nnd
                #:cl-syslog
-               #:fiasco
-               )
+               #:fiasco)
   :perform (asdf:test-op (o s)
                          (uiop:symbol-call :nnd-tests
                                            '#:run-nnd-tests))
@@ -16,4 +14,5 @@
   :components ((:file "packages")
                (:file "suite")
                (:file "util-tests")
-               ))
+               (:file "linear-algebra-tests")))
+               

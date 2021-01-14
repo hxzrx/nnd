@@ -23,7 +23,13 @@
         ((null lists) (cons rows cols))
         (t (and (= cols (length (car lists)))
                 (lists-length-equal (cdr lists) rows cols)))))
-      
+
+(defun matrixp (matrix)
+  "check if it is a matrix"
+  (if (and (list matrix) (every #'listp matrix))
+      (lists-length-equal matrix)
+      nil))
+
 (defun lists-square-p (lists)
   "check the matrix is square, if square, return the size n, else return nil"
   (let ((size (lists-length-equal lists)))

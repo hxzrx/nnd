@@ -1,5 +1,7 @@
 ;;;; tests/util-tests.lisp
 
+;;usage: (nnd-tests::run-nnd-tests)
+
 (in-package #:nnd-tests)
 
 (deftest test-list-length-equal ()

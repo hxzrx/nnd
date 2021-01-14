@@ -55,9 +55,29 @@
 (defun basic-list-inner-product (vec1 vec2)
   "inner for two lists, eg. '(1 2 3) '(4 5 6)"
   (reduce #'+ (mapcar #'* vec1 vec2)))
-        
+
+(defun basic-list-independent-p (&rest lists)
+  "check if the lists are independent"
+  (when (= (length lists)
+           (matrix-rank lists))
+    t))
+
 ;;;; all the vectors and matrices are lists of lists, even for a row vector, eg. '((1 2 3))
 ;;;; addition
+(defgeneric row-vector-p (vec)
+  (:documentation "check if vec is a row vector"))
+
+(defmethod row-vector-p ((vec list))
+  "check if vec is a row vector"
+  (and (= (length vec) 1)
+       (every #'numberp (car vec))))
+
+(defgeneric column-vector-p (vec)
+  (:documentation "check if vec is a column vector"))
+
+(defmethod column-vector-p ((vec list))
+  "check if vec is a column vector"
+  (every #'(lambda (row) (and (listp row) (= (length row) 1) (numberp (car row)))) vec))
 (defgeneric vector-add (a b)
   (:documentation "additon two vectors"))
 
@@ -346,10 +366,10 @@
         for row2 in matrix2
         collect (append row1 row2)))
 
-(defgeneric matrix-reverse (matrix)
+(defgeneric matrix-inverse (matrix)
   (:documentation "calc the reverse of matrix"))
 
-(defmethod matrix-reverse ((matrix list))
+(defmethod matrix-inverse ((matrix list))
   "calc the reverse of matrix"
   (let ((size (matrix-size matrix)))
     (assert (= (car size) (cdr size)))
@@ -360,6 +380,30 @@
       (if (eye-p (matrix-left-columns left-eye (car size)))
           (matrix-right-columns left-eye (car size))
           nil))))
+
+(defgeneric matrix-pseudoinverse (matrix)
+  (:documentation "Moore-Penrose pseudoinverse, 
+                   when N(rows) > N(columns), and the columns are independent, P+ = inverse(P'P) P'
+                   when N(rows) < N(columns), and the rows are independent, P+ = P' inverse(PP')"))
+
+(defmethod matrix-pseudoinverse ((matrix list))
+  "Moore-Penrose pseudoinverse"
+  (let ((size (matrix-size matrix)))
+    (cond ((and (> (car size) (cdr size)) (matrix-column-independent-p matrix))
+           (matrix-product (matrix-inverse (matrix-product (transpose matrix) matrix))
+                           (transpose matrix)))
+          ((and (< (car size) (cdr size)) (matrix-row-independent-p matrix))
+           (matrix-product (transpose matrix)
+                           (matrix-inverse (matrix-product matrix (transpose matrix)))))
+          ((matrix-row-independent-p matrix) (matrix-inverse matrix))
+          (t (format t "This matrix has no pseudoinverse.")
+             (print-matrix matrix)
+             (error "This matrix has no pseudoinverse.")))))
+
+
+
+
+
 
 ;;;; Gauss-Jordan Elimination
 (defgeneric gauss-jordan-elimination (matrix)
@@ -572,6 +616,21 @@
   (let ((lower-triangle (row-elimination-up-down matrix)))
     (matrix-rank% lower-triangle)))
 
+(defgeneric matrix-row-independent-p (matrix)
+  (:documentation "check if the rows of matrix are independent"))
+
+(defmethod matrix-row-independent-p ((matrix list))
+  "check if the rows of matrix are independent"
+  (if (= (length matrix) (matrix-rank matrix)) t nil))
+
+(defgeneric matrix-column-independent-p (matrix)
+  (:documentation "check if the columns of matrix are independent"))
+
+(defmethod matrix-column-independent-p ((matrix list))
+  "check if the columns of matrix are independent"
+  (let ((matrixT (transpose matrix)))
+    (if (= (length matrixT) (matrix-rank matrixT)) t nil)))
+  
 
 ;;;; solve linear equations
 
