@@ -78,12 +78,15 @@
 (defmethod column-vector-p ((vec list))
   "check if vec is a column vector"
   (every #'(lambda (row) (and (listp row) (= (length row) 1) (numberp (car row)))) vec))
+
 (defgeneric vector-add (a b)
-  (:documentation "additon two vectors"))
+  (:documentation "additon two vectors, the result is the same as the type of a"))
 
 (defmethod vector-add ((a list) (b list))
   "addition of two vectors of type 'list"
-  (list (basic-list-list+ (car a) (car b))))
+  (if (row-vector-p a)
+      (list (basic-list-list+ (car a) (car b)))
+      (transpose (vector-add (transpose a) (transpose b)))))
 
 
 ;;;; subtraction
@@ -92,7 +95,9 @@
 
 (defmethod vector-sub ((a list) (b list))
   "subtraction of two vectors of type 'list"
-  (list (basic-list-list- (car a) (car b))))
+  (if (row-vector-p a)
+      (list (basic-list-list- (car a) (car b)))
+      (transpose (vector-sub (transpose a) (transpose b)))))
 
 
 ;;;; vector multiple a scalar
@@ -101,11 +106,13 @@
 
 (defmethod vector-multiply-scalar ((v list) (n number))
   "vector * scalar"
-  (list (basic-list-scalar* (car v) n)))
+  (if (row-vector-p v)
+      (list (basic-list-scalar* (car v) n))
+      (transpose (vector-multiply-scalar (transpose v) n))))
 
 (defmethod vector-multiply-scalar ((n number) (v list))
   "scalar * vector"
-  (list (basic-list-scalar* (car v) n)))
+  (vector-multiply-scalar v n))
 
 
 ;;;; matrix addition
@@ -191,6 +198,8 @@
 (defmethod inner-product ((a list) (b list))
   "inner product, row vetors and column vectors are allowable, row vector is only for simplicity.
    '((1 2 3)) dot '((1 2 3)), or '((1) (2) (3)) dot '((1) (2) (3)), the results are the same"
+  ;;test (inner-product '((1 2 3)) '((1 2 3)))
+  ;;test (inner-product '((1) (2) (3)) '((1) (2) (3)))
   (assert (list-length-equal (car a) (car b)))
   ;(assert (list-check-type (car a) 'number))
   ;;(assert (list-check-type (car b) 'number))
@@ -208,12 +217,12 @@
 
 ;;;; ith row of a matrix
 (defgeneric nth-row (matrix nth)
-  (:documentation "return the nth row of matrix, return a row vector, '((1 2 3))"))
+  (:documentation "return the nth row of matrix, return a list, '((1 2 3))"))
 
 (defmethod nth-row ((matrix list) (n-th integer))
   "return the nth row of matrix"
   (assert (> (car (matrix-size matrix)) n-th))
-  (nth n-th matrix))
+  (list (nth n-th matrix)))
 
 ;;;; nth column of a matrix
 (defgeneric nth-col (matrix nth)
@@ -672,3 +681,65 @@
           (let ((size (matrix-size vec)))
             (make-zeros (car size) (cdr size))))
         (matrix-multiple-scalar vec (/ 1 (sqrt norm^2))))))
+
+;;;; orthogonalization
+(defgeneric orthogonalization (matrix)
+  (:documentation
+   "Gram-Schmidt Orthogonalization. 
+    For n independent vector y1, ... , yn, transfer them to n orthogonalized vetors v1, ... , vn
+    v1 = y1
+    vk = yk - \sum_{i=1}^{k-1}(vi yk) /(vi vi) vi
+    for simplicity, the input vectors are columns of matrix, and return a matrix whose column vectors are orthogonalized
+  "))
+
+(defmethod orthogonalization ((matrix list))
+  "Gram-Schmidt Orthogonalization"
+  ;; test (orthogonalization (eye 3))
+  (let ((to-rows (transpose matrix)) ;col to row so that they are suitable to be processed as lists
+        (orthed-rows nil))
+    (loop for row in to-rows
+          for k   from 0
+          do (progn (if (= k 0)
+                        (push row orthed-rows)
+                        (push (car (vector-sub
+                                    (nth-row matrix k)
+                                    (reduce #'vector-add
+                                            (loop for i from 0 to (1- k)
+                                                  collect
+                                                  (vector-multiply-scalar
+                                                   (nth-row orthed-rows i)
+                                                   (/ (inner-product (nth-row orthed-rows i)
+                                                                     (nth-row matrix      k))
+                                                      (inner-product (nth-row orthed-rows i)
+                                                                     (nth-row orthed-rows i))))))))
+                              orthed-rows))))
+    (transpose (reverse orthed-rows))))
+
+
+;;;; projection
+(defgeneric projection (b a)
+  (:documentation "the projection of b onto the line through a, the result vevtor p = (a b)/(a a) * a"))
+
+(defmethod projection ((b list) (a list))
+  "the projection of b onto the line through a, the result is an column vetor"
+  (assert (eql (row-vector-p b) (row-vector-p a)))
+  (vector-multiply-scalar a (/ (inner-product b a) (inner-product a a))))
+
+(defgeneric eigenvalues (matrix)
+  (:documentation "return a list of eigenvalues of matrix"))
+
+(defmethod eigenvalues ((matrix list))
+  "return a list of eigenvalues of matrix, currently only for 2 by 2 matrix"
+  (cond ((equal (matrix-size matrix) '(2 . 2))
+         (let ((a (first  (first  matrix)))
+               (b (second (first  matrix)))
+               (c (first  (second matrix)))
+               (d (second (second matrix))))
+           (list (/ (+ (+ a d) (sqrt (- (* (+ a d) (+ a d))
+                                    (* 4 (- (* a d) (* b c))))))
+                    2)
+                 (/ (- (+ a d) (sqrt (- (* (+ a d) (+ a d))
+                                        (* 4 (- (* a d) (* b c))))))
+                    2))))
+        (t (format t "~&Not implemented.~%"))))
+                 
