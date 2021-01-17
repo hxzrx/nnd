@@ -97,7 +97,7 @@
 
 (defun print-matrix (m)
   "print matrix"
-  (format  t "~{~{~d  ~}~&~}~%~%" m))
+  (format  t "~{~{~d  ~}~&~}~%" m))
 
 (defun list-given-place-1-others-0 (lst k &optional (i 0) (epsilon 0.000001))
   "check if the kth place of lst is close to 1, and close to 0 otherwise
@@ -114,3 +114,11 @@
   (if (null lst) t
       (and (< (abs (car lst)) epsilon)
            (list-zeros-p (cdr lst) epsilon))))
+
+(defun print-training-result (weights bias correct-rate)
+  "print weight, bias, and correct-rate"
+  (format t "~&Classified Rate: ~f~%" correct-rate)
+  (format t "~&Weights:~%")
+  (print-matrix weights)
+  (format t "~&Bias:~%")
+  (print-matrix bias))

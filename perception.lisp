@@ -29,20 +29,21 @@
               (matrix-add bias e)))))
 
 ;;;; perception-training-one-turn%
-(defgeneric perception-training-one-turn% (samples weights bias)
+(defgeneric perception-training-one-turn% (samples weights bias &optional transfer-function)
   (:documentation "successive training with all the samples"))
 
-(defmethod perception-training-one-turn% ((samples list) (weights list) (bias list))
+(defmethod perception-training-one-turn% ((samples list) (weights list) (bias list) &optional (transfer-function #'hardlim))
+  "return a cons of weights and bias"
   (if (null samples) (cons weights bias)
-      (let ((updated-params (perception-training-one-sample (car samples) weights bias)))
-        (perception-training-one-turn% (cdr samples) (car updated-params) (cdr updated-params)))))
+      (let ((updated-params (perception-training-one-sample (car samples) weights bias transfer-function)))
+        (perception-training-one-turn% (cdr samples) (car updated-params) (cdr updated-params) transfer-function))))
 
 ;;;; training one turn with all sample
-(defgeneric perception-training-one-turn (samples &optional weights bias)
+(defgeneric perception-training-one-turn (samples &optional weights bias transfer-function)
   (:documentation "training one turn with all sample"))
 
-(defmethod perception-training-one-turn ((samples list) &optional weights bias)
-  "training one turn with all samples. 
+(defmethod perception-training-one-turn ((samples list) &optional weights bias (transfer-function #'hardlim))
+  "training one turn with all samples, return a cons of weights and bias. 
    for simplicity, input and labels in each sample were a list of numbers, and they will transpose to column vectors later.
    eg. '( ((1 2 3) (1 1))  ((1 1 1) (0 0)) )"
   ;;test (nnd::perception-training-one-turn '( ((1 1 3) (1 1))  ((1 1 1) (0 0)) ))
@@ -53,7 +54,7 @@
          (init-bias (if bias bias
                         (rand-matrix out-num 1 0 2)))) ;1 column
     ;;(format t "~&in-num: ~d, out-num: ~d~&init-weights: ~d~&init-bias: ~d~%" in-num out-num init-weights init-bias)
-    (perception-training-one-turn% samples init-weights init-bias)))
+    (perception-training-one-turn% samples init-weights init-bias transfer-function)))
 
 
 ;;;; perceptron correctness
@@ -70,14 +71,31 @@
                (when (equal (perceptron (transpose (list (car s))) weights bias transfer-function)
                             (transpose (list (cadr s))))
                  (incf correct-num))))
-    (format t "~&Samples: ~d~&Correctly classified: ~d~&Correct rate: ~f" sample-num correct-num (/ correct-num sample-num))
+    ;;(format t "~&Samples: ~d~&Correctly classified: ~d~&Correct rate: ~f" sample-num correct-num (/ correct-num sample-num))
     (/ correct-num sample-num)))
   
   
 ;;;; training one turn
-(defgeneric perception-training (samples classified-rate)
+(defgeneric perception-training (samples &optional classified-threshold turns-limit transfer-function)
   (:documentation "training a perception with samples. samples has the form '((p1 . t1) (p2 . t2) ... (pn . tn), where p is a column vector and t is a number or a column vector, the number or vector element should only be 0 or 1"))
 
 
-
-          
+(defmethod perception-training ((samples list) &optional (correct-threshold 0.95) (turns-limit 100) (transfer-function #'hardlim))
+  "training a perception with samples, return weights and bias"
+  ;;test (nnd::perception-training   '( ((1 1 3) (1 1))  ((1 1 1) (0 0))))
+  (do* ((training-result (perception-training-one-turn samples nil nil transfer-function)
+                         (perception-training-one-turn samples weights bias transfer-function))
+        (weights (car training-result) (car training-result))
+        (bias (cdr training-result) (cdr training-result))
+        (correct-rate (perceptron-correct-rate samples weights bias transfer-function)
+                      (perceptron-correct-rate samples weights bias transfer-function))
+        (turns 1 (incf turns)))
+       ((or (> correct-rate correct-threshold)
+            (> turns turns-limit))
+        (if (> turns turns-limit)
+            (progn (format t "~&Training Failed, after ~d turn, correct rate is still: ~f~%~%" turns correct-rate))
+            (progn (format t "~&Training Succefull!~%")
+                   (format t "~&Turns: ~d, Correct rate: ~f~%" turns correct-rate)
+                   (print-training-result weights bias correct-rate)
+                   (list weights bias))))))
+                    
