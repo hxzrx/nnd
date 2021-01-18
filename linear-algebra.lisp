@@ -743,3 +743,23 @@
                     2))))
         (t (format t "~&Not implemented.~%"))))
                  
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;Directional Derivatives
+(defgeneric directional-derivative (direction gradient)
+  (:documentation "the derivative of the function along the direction. the result is (p Gradient) / norm(p)"))
+
+(defmethod directional-derivative ((direction list) (gradient list))
+  "directional derivative"
+  (/ (inner-product direction gradient) (norm direction)))
+
+(defgeneric directional-derivative-2 (direction gradient)
+  (:documentation "the second order derivative of the function along the direction. the result is (p Gradient) / norm(p)"))
+
+(defmethod directional-derivative-2 ((direction list) (hessian list))
+  "second order directional derivative, 
+   direction should be an column vector, and hessian is the Hessian matrix"
+  (matrix-product (matrix-product (transpose direction) hessian) direction))
+
+
