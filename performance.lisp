@@ -28,9 +28,9 @@
   "performance-index, a plist denote the function, has the form: '(:A a-matrix :d a-column-vector :c a-number)
    guessed-point, a column vector, eg. '((x1) (x2)), if guessed-point is provided as nil, assign it with a random point
   "
-  ;; test, p144: (steepest-escent '(:A ((10 -6) (-6 10)) :d ((4) (4)) :c 0) '((0) (-2)) nil)
-  ;; test, p135: (steepest-escent '(:A ((2 1) (1 2)) :d ((0) (0)) :c 0) '((0.8) (-0.25)) nil)
-  ;; test, p145: (steepest-escent '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) '((1) (1)) 0.05)
+  ;; test, p144: (steepest-descent '(:A ((10 -6) (-6 10)) :d ((4) (4)) :c 0) '((0) (-2)) nil)
+  ;; test, p135: (steepest-descent '(:A ((2 1) (1 2)) :d ((0) (0)) :c 0) '((0.8) (-0.25)) nil)
+  ;; test, p145: (steepest-descent '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) '((1) (1)) 0.05)
   (let* ((hessian  (getf performance-index :A))
          (d-vec    (getf performance-index :d))
          (gradient (matrix-add (matrix-product hessian guessed-point) d-vec))
