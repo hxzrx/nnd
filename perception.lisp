@@ -1,6 +1,7 @@
 (in-package #:nnd)
 
-;;;; Chapter 4
+;;;; Chapter 4 Supervised Hebbian Learning
+;;;; Show how the Hebb rule can be used to train neural networks for pattern recognition.
 
 (defgeneric perceptron (input-vec weights-matrix bias-vec &optional transfer-function)
   (:documentation "perception input-output"))

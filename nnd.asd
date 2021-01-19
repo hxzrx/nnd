@@ -22,6 +22,7 @@
                (:file "util")
                (:file "linear-algebra")
                (:file "transfer-functions")
+               (:file "learner")
                (:file "perception")
-               ))
+               (:file "performance")))
 

@@ -730,6 +730,7 @@
 
 (defmethod eigenvalues ((matrix list))
   "return a list of eigenvalues of matrix, currently only for 2 by 2 matrix"
+  ;; test (eigenvalues '((10 -6) (-6 10))) ==> '(16 4)
   (cond ((equal (matrix-size matrix) '(2 . 2))
          (let ((a (first  (first  matrix)))
                (b (second (first  matrix)))

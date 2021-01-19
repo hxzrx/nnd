@@ -38,7 +38,7 @@
 
 (defun matrix-square-p (matrix)
   "check the matrix is square, if square, return the size n, else return nil"
-  (lists-square matrix))
+  (lists-square-p matrix))
 
 (defun list-check-rectangle (lst)
   "check if each sublist in 'lst has the same length, return nil if not, or return (rows . columns)"
@@ -122,3 +122,16 @@
   (print-matrix weights)
   (format t "~&Bias:~%")
   (print-matrix bias))
+
+(defun quadratic-function-value (quadratic point)
+  "calc the value of the quadratic function at 'point
+   the function is F(x) = 1/2 x' A x + d' x + c
+   quadratic: '(:A a-matrix :d a-column-vector :c a-number)
+  "
+  (let ((A (getf quadratic :A))
+        (d (getf quadratic :d))
+        (c (getf quadratic :c)))
+    (+ (* 1/2 (inner-product point (matrix-product A point)))
+       (inner-product d point)
+       c)))
+
