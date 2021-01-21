@@ -76,7 +76,7 @@
     (/ correct-num sample-num)))
   
   
-;;;; training one turn
+;;;; training with the whole samples
 (defgeneric perception-training (samples &optional classified-threshold turns-limit transfer-function)
   (:documentation "training a perception with samples. samples has the form '((p1 . t1) (p2 . t2) ... (pn . tn), where p is a column vector and t is a number or a column vector, the number or vector element should only be 0 or 1"))
 
