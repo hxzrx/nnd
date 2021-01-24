@@ -84,8 +84,9 @@
   
 (defun zeros-p (matrix)
   "check if all of the elements are 0"
-  (if (null matrix) t
-      (and (zeros-row-p (car matrix)) (zeros-p (cdr matrix)))))
+  (if (numberp matrix) (= matrix 0)
+      (if (null matrix) t
+          (and (zeros-row-p (car matrix)) (zeros-p (cdr matrix))))))
 
 ;;;; utils for transfer functions
 (defun collect-transfer (trans-fun col-vec)
@@ -97,7 +98,9 @@
 
 (defun print-matrix (m)
   "print matrix"
-  (format  t "~{~{~d  ~}~&~}~%" m))
+  (if (listp m)
+      (format  t "~&~{~{~d  ~}~&~}" m)
+      (format t "~&~d~%"m)))
 
 (defun list-given-place-1-others-0 (lst k &optional (i 0) (epsilon 0.000001))
   "check if the kth place of lst is close to 1, and close to 0 otherwise
@@ -117,7 +120,7 @@
 
 (defun print-training-result (weights bias correct-rate)
   "print weight, bias, and correct-rate"
-  (format t "~&Classified Rate: ~f~%" correct-rate)
+  (format t "~&Performance Index: ~f~%" correct-rate)
   (format t "~&Weights:~%")
   (print-matrix weights)
   (format t "~&Bias:~%")

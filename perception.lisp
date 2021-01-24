@@ -91,7 +91,7 @@
         (correct-rate (perceptron-correct-rate samples weights bias transfer-function)
                       (perceptron-correct-rate samples weights bias transfer-function))
         (turns 1 (incf turns)))
-       ((or (> correct-rate correct-threshold)
+       ((or (< correct-rate correct-threshold)
             (> turns turns-limit))
         (if (> turns turns-limit)
             (progn (format t "~&Training Failed, after ~d turn, correct rate is still: ~f~%~%" turns correct-rate))

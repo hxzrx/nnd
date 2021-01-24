@@ -130,6 +130,9 @@
           for m2-row in matrix2
           collect (basic-list-list+ m1-row m2-row))))
 
+(defmethod matrix-add ((matrix1 number) (matrix2 number))
+  "number + number"
+  (+ matrix1 matrix2))
   
 ;;;; matrix subtraction
 (defgeneric matrx-sub (matrix1 matrix2)
@@ -146,7 +149,10 @@
           for j in matrix2
           collect (basic-list-list- i j))))
 
-               
+(defmethod matrix-sub ((matrix1 number) (matrix2 number))
+  "mnumber - number"
+  (- matrix1 matrix2))
+
 ;;;; matrix multiply a scalar
 (defgeneric matrix-multiple-scalar (matrix n)
   (:documentation " matrix * number"))
@@ -186,9 +192,23 @@
         (size2 (lists-length-equal matrix2)))
     (assert (and size1 size2))
     (assert (= (cdr size1) (car size2)))
-    (loop for row in matrix1
-          collect (loop for col in (transpose matrix2)
-                        collect (basic-list-inner-product row col)))))
+    (if (and (= (car size1) 1) (= (cdr size2) 1))
+        (inner-product matrix1 (transpose matrix2))
+        (loop for row in matrix1
+              collect (loop for col in (transpose matrix2)
+                            collect (basic-list-inner-product row col))))))
+
+(defmethod matrix-product ((matrix list) (n number))
+  "matrix * n"
+  (matrix-multiple-scalar matrix n))
+
+(defmethod matrix-product ((n number) (matrix list))
+  "n * matrix"
+  (matrix-multiple-scalar matrix n))
+
+(defmethod matrix-product ((m number) (n number))
+  "m * n"
+  (* m n))
 
 
 ;;;; inner produce
@@ -206,6 +226,21 @@
   (if (null (cdar a)) ;; if column vector
       (basic-list-inner-product (car (transpose a)) (car (transpose b)))
       (basic-list-inner-product (car a) (car b)))) ;row vector
+
+(defmethod inner-product ((a number) (b number))
+  "for special case, returns a*b"
+  (* a b))
+
+(defgeneric inner-product-self (a)
+  (:documentation "vetor's inner product with itself, (a a)"))
+
+(defmethod inner-product-self ((a list))
+  "inner product (a a)"
+  (inner-product a a))
+
+(defmethod inner-product-self ((a number))
+  "special case, inner product (a a)"
+    (* a a))
 
 ;;;; matrix size
 (defgeneric matrix-size (m)
@@ -764,3 +799,13 @@
   (matrix-product (matrix-product (transpose direction) hessian) direction))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defgeneric sum-squares (matrix)
+  (:documentation "sum of the squares of the elements"))
+
+(defmethod sum-squares ((matrix list))
+  "sum of the squares of the elements"
+  (loop for row in matrix
+        sum (loop for element in row
+                  sum(* element element))))

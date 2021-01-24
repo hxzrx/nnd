@@ -24,5 +24,6 @@
                (:file "transfer-functions")
                (:file "learner")
                (:file "perception")
-               (:file "performance")))
+               (:file "performance")
+               (:file "widrow-hoff")))
 
