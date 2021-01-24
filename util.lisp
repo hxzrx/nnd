@@ -138,3 +138,6 @@
        (inner-product d point)
        c)))
 
+(defun shuffle (seq)
+  "random sorting for a sequence"
+  (alexandria:shuffle seq))
