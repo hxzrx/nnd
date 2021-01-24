@@ -93,7 +93,7 @@
         (turns 1 (incf turns)))
        ((or (> correct-rate correct-threshold)
             (>= turns turns-limit))
-        (if (> turns turns-limit)
+        (if (>= turns turns-limit)
             (progn (format t "~&Training Failed, after ~d turn, correct rate is still: ~f~%~%" turns correct-rate))
             (progn (format t "~&Training Succefull!~%")
                    (format t "~&Turns: ~d, Correct rate: ~f~%" turns correct-rate)
