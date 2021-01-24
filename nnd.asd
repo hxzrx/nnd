@@ -11,7 +11,8 @@
   :homepage "https://gitee.com/hxz/nnd"
   :version 0.0.1
   :license "MulanPSL-2.0"
-  :depends-on (;;#:bordeaux-threads       ; thread lib
+  :depends-on (#:alexandria
+               ;;#:bordeaux-threads       ; thread lib
                ;;#:cl-syslog              ; send logs to syslogd
                ;;#:magicl                 ; matrix algebra https://github.com/rigetti/magicl
                )
