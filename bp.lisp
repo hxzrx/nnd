@@ -1,0 +1,305 @@
+(in-package #:nnd)
+
+;;;; Chapter 11, Backpropagation
+
+;;;; backpropagation network class definition
+(defclass bp-network ()
+  ((inputs :initarg :inputs
+           :accessor inputs
+           :type list
+           :initform nil
+           :documentation "the list of inputs for the layers, used for updating parameters, reverse order")
+   (weights :initarg :weights
+            :accessor weights
+            :type list
+            :initform nil
+            :documentation "the list of weight matrices for the layers")
+   (biases :initarg :biases
+         :accessor biases
+         :type list
+         :initform nil
+         :documentation "the list of biases for the layers")
+   (net-inputs :initarg :net-inputs
+               :accessor net-inputs
+               :type list
+               :initform nil
+               :documentation "the list of net inputs for the layers, reverse order")
+   (transfers :initarg :transfers
+              :accessor transfers
+              :type list
+              :initform nil
+              :documentation "the list of transfer functions for the layers")
+   (derivatives :initarg :derivatives
+                :accessor derivatives
+                :type list
+                :initform nil
+                :documentation "the derivatives of the transfer functions for the layers")
+   (outputs :initarg :outputs
+            :accessor outputs
+            :type list
+            :initform nil
+            :documentation "the list of outputs for the layers, reverse order, inverse order")
+   (sensitivities :initarg :sensitivities
+                  :accessor sensitivities
+                  :type list
+                  :initform nil
+                  :documentation "the list of sensitivities for the layers, 
+                                  this need only two values in the iteration, 
+                                  but I keep the whole for the sake of checking the intermediate steps,
+                                  used in batch bp")
+   (gradients-sum :initarg :gradients-sum
+                  :accessor gradients-sum
+                  :type list
+                  :initform nil
+                  :documentation "∑(sensitive) * (input)ᵀ, sum over the examples for each layer, 
+                                  used in batch learning, used in batch bp"))
+   (:documentation "a neural network learner, for multi-layers"))
+
+(defun make-bp-network (&key weight-list bias-list transfer-list derivative-list)
+  "return a bp-network instance with the initial parameters"
+  (make-instance 'bp-network
+                 :weights weight-list :biases bias-list :transfers transfer-list
+                 :derivatives (loop for d-type in derivative-list
+                                    collect (derivative d-type))))
+
+;;;; get the result of the network given the input and parameters
+(defgeneric propagation-forward-without-states (bp input)
+  (:documentation "propagation forward for ONE sample, and only collect the final result"))
+
+(defmethod propagation-forward-without-states ((bp bp-network) (input list))
+  "the input is an column vector such as '((-1) (1)), and the result is a column vector or a number"
+  (cascaded-network input (weights bp) (biases bp) (transfers bp)))
+
+(defmethod propagation-forward-without-states ((bp bp-network) (input number))
+  "the input is an column vector such as '((-1) (1)), and the result is a column vector or a number"
+  (cascaded-network input (weights bp) (biases bp) (transfers bp)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; get the resuls of the network, as well gathering all the intermediate states
+(defgeneric propagation-forward% (bp input weights biases transfers)
+  (:documentation "collect all the intermediate states and change the respect slots (inputs, net-inputs, outputs) 
+                   of the instance of bp"))
+
+(defmethod propagation-forward% ((bp bp-network) (input list) (weights list) (biases list) (transfers list))
+  "for input is a column vector"
+  (if (null weights)
+      input
+      (let* ((n (matrix-add (matrix-product (car weights) input)
+                            (car biases)))
+             (a (funcall (car transfers) n)))
+        (push input (inputs bp))
+        (push n (net-inputs bp))
+        (push a (outputs bp))
+        (propagation-forward% bp a (cdr weights) (cdr biases) (cdr transfers)))))
+
+(defmethod propagation-forward% ((bp bp-network) (input number) (weights list) (biases list) (transfers list))
+  "for input is a number"
+  (if (null weights)
+      input
+      (let* ((n (matrix-add (matrix-product (car weights) input)
+                            (car biases)))
+             (a (funcall (car transfers) n)))
+        (push input (inputs bp))
+        (push n (net-inputs bp))
+        (push a (outputs bp))
+        (propagation-forward% bp a (cdr weights) (cdr biases) (cdr transfers)))))
+
+(defgeneric propagation-forward (bp input)
+  (:documentation "propagation forward, return the result, and collect all the intermediate states"))
+
+(defmethod propagation-forward ((bp bp-network) (input list))
+  "the input is an column vector such as '((-1) (1))"
+  (setf (inputs     bp) nil) ;initialized to nil before propagating
+  (setf (net-inputs bp) nil)
+  (setf (outputs    bp) nil)
+  (propagation-forward% bp input (weights bp) (biases bp) (transfers bp)))
+
+(defmethod propagation-forward ((bp bp-network) (input number))
+  "the input is an column vector such as '((-1) (1))"
+  (setf (inputs     bp) nil)
+  (setf (net-inputs bp) nil)
+  (setf (outputs    bp) nil)
+  (propagation-forward% bp input (weights bp) (biases bp) (transfers bp)))
+
+#|
+(setf bp1 (make-bp-network :weight-list '(((1 -1) (1 0)) ((1 1)))
+                          :bias-list '(((1) (2)) 1)
+                          :transfer-list (list #'cube #'purelin)))
+(propagation-forward-without-states bp1 '((-1) (1)))
+(propagation-forward bp1 '((-1) (1)))
+
+(setf bp2 (make-bp-network :weight-list '(-1 -2)
+                           :bias-list '(1 1)                                                                                     
+                           :transfer-list (list #'tansig #'tansig)))
+(propagation-forward-without-states bp2 -1)
+(propagation-forward bp2 -1)
+
+(setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
+                           :bias-list '(((-0.48) (-0.13)) 0.48)
+                           :transfer-list (list #'logsig #'purelin)))
+(propagation-forward-without-states bp3 1)
+(propagation-forward bp3 1)
+|#
+
+(defgeneric derivative-diag (fun vars)
+  (:documentation "F'(n) = diag(f'(n1) f'(n2) ... f'(nm))"))
+
+(defmethod derivative-diag ((fun function) (vars list))
+  "Chinese Ed. p185, (11.34)"
+  ;;(derivative-diag (derivative :logsig) '(1 2 3))
+  (diag-from-list (mapcar fun vars)))
+
+;;(defgeneric sensitivity (bp ∂F target a m)
+;;  (:documentation "sensicivity s = ∂F / ∂n"))
+
+(defmethod sensitivity-init (derivative net-inputs  target a)
+  "for the last layer, sᴹ = -2 ∂Fᴹ(nᴹ) (t - a)"
+  (let ((F^M (if (numberp net-inputs)
+                 (funcall derivative net-inputs)
+                 (diag-from-list (loop for n in net-inputs collect (funcall derivative n)))))
+        (e (matrix-sub target a)))
+    (reduce #'matrix-product (list -2 F^m e))))
+
+(defmethod sensitivity-update (derivative net-inputs weight+1 sensitivity+1)
+  "sᵐ = ∂Fᵐ(nᵐ) (Wᵐ⁺¹)ᵀ sᵐ⁺¹"
+  (let ((F^m (if (numberp net-inputs)
+                 (funcall derivative net-inputs)
+                 (diag-from-list (loop for n in net-inputs
+                                       collect (funcall derivative (car n))))))) ;net-inputs is a column vec, so, use (car n)
+    (reduce #'matrix-product (list F^m (transpose weight+1) sensitivity+1))))
+
+(defgeneric backpropagation% (bp sample alpha)
+  (:documentation "back propagation for one sample"))
+
+(defmethod backpropagation% ((bp bp-network) (sample list) (alpha real))
+  "back propagation for one sample"
+  (let ((a (propagation-forward bp (if (numberp (car sample))
+                                       (car sample)
+                                       (list (car sample)))));propagation forward and collect the intermediate states
+        (new-weights nil)
+        (new-bias nil)
+        (weight-list (reverse (weights bp)))
+        (bias-list (reverse (biases bp)))
+        (input-list (inputs bp))
+        (net-input-list (net-inputs bp))
+        (dF (reverse (derivatives bp)))
+        (target (if (numberp (cadr sample)) (cadr sample) (transpose (list (cadr sample)))))
+        )
+    (do* ((idx (length (weights bp)) (decf idx))
+          (next-weight nil (car cur-weights))
+          (cur-weights weight-list (cdr cur-weights))
+          (cur-bias (pop bias-list) (pop bias-list))
+          (input (pop input-list) (pop input-list))
+          (net-input (pop net-input-list) (pop net-input-list))
+          (derivative (pop dF) (pop dF))
+          (sensitivity (sensitivity-init derivative net-input target a)
+                       (when derivative (sensitivity-update derivative net-input next-weight sensitivity))))
+         ((= idx 0)
+          (setf (weights bp) new-weights)
+          (setf (biases bp) new-bias))
+      (push (matrix-sub (car cur-weights) (reduce #'matrix-product
+                                                  (list alpha
+                                                        sensitivity
+                                                        (if (numberp input) input (transpose input)))))
+            new-weights)
+      (push (matrix-sub cur-bias (matrix-product alpha sensitivity))
+            new-bias)
+      (terpri))))
+
+(defgeneric backpropagation (bp samples alpha)
+  (:documentation "backpropagation for all the samples, update the parameters for each example"))
+
+(defmethod backpropagation ((bp bp-network) (samples list) (alpha real))
+  (dolist (sample samples)
+    (backpropagation% bp sample alpha)))
+  
+;;;; p186, 11.2.3 example
+#|
+(setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
+                           :bias-list '(((-0.48) (-0.13)) 0.48)
+                           :transfer-list (list #'logsig #'purelin)
+                           :derivative-list (list :logsig :purelin)))
+(backpropagation% bp3 (list 1 (1+ (sin (/ pi 4)))) 0.1)
+(backpropagation  bp3 (list (list 1 (1+ (sin (* (/ pi 4) 1)))) 
+                            (list -2 (1+ (sin (* (/ pi 4) -2)))) 
+                            (list 2 (1+ (sin (* (/ pi 4) 2))))) 0.1)
+
+;;;; p198, P11.7
+(setf bp4 (make-bp-network :weight-list '(-1 -2)
+                           :bias-list '(1 1)
+                           :transfer-list (list #'tansig #'tansig)
+                           :derivative-list (list :tansig :tansig)))
+(backpropagation% bp4 (list -1 1) 1)
+|#
+
+(defgeneric backpropagation-batch (bp samples alpha)
+  (:documentation "The total gradient of the mean square error is the mean of the gradients of the individual squared errors. 
+Therefore, to implement a batch version of the backpropagation algorithm, 
+we would executive propagate forward and calculate the sensitivities for all of the inputs in the training set.
+Then, the individual gradients would be averaged to get the total gradient."))
+
+(defmethod backpropagation-batch ((bp bp-network) (samples list) (alpha real))
+  "we keep sum of the gradients in the slot of gradients-sum of bp and increase the value for each sample"
+  (do ((sample-num (length samples))
+       (sample (pop samples) (pop samples))
+       (sample-id 0 (incf sample-id)))
+      ((null samples)
+       (setf (weights bp)
+             (loop for weight in (weights bp)
+                   for gradient in (gradients-sum bp)
+                   collect (matrix-sub weight (matrix-product (/ alpha sample-num)
+                                                              gradient))))
+       (setf (biases bp)
+             (loop for bias in (biases bp)
+                   for sensitivity in (sensitivities bp)
+                   collect (matrix-sub bias (matrix-product (/ alpha sample-num)
+                                                            sensitivity))))
+       (format t "~&Batch backpropagation completed~%")
+       bp)
+    (format t "~&Sample id: ~d, contents: ~d~%" sample-id sample)
+    (let ((a (propagation-forward bp (if (numberp (car sample))
+                                         (car sample)
+                                         (list (car sample)))));propagation forward and collect the intermediate states
+          (weight-list (reverse (weights bp)))
+          (bias-list (reverse (biases bp)))
+          (input-list (inputs bp))
+          (net-input-list (net-inputs bp))
+          (dF (reverse (derivatives bp)))
+          (new-gradients nil)
+          (gradients (reverse (gradients-sum bp)))
+          (new-sensitivities nil)
+          (sensitivities (reverse (sensitivities bp)))
+          (target (if (numberp (cadr sample)) (cadr sample) (transpose (list (cadr sample))))))
+      (do* ((idx (length (weights bp)) (decf idx))
+            (next-weight nil (car cur-weights))
+            (cur-weights weight-list (cdr cur-weights))
+            (cur-bias (pop bias-list) (pop bias-list))
+            (input (pop input-list) (pop input-list))
+            (net-input (pop net-input-list) (pop net-input-list))
+            (g (pop gradients) (pop gradients))
+            (s (pop sensitivities) (pop sensitivities))
+            (derivative (pop dF) (pop dF))
+            (sensitivity (sensitivity-init derivative net-input target a)
+                         (when derivative (sensitivity-update derivative net-input next-weight sensitivity))))
+           ((= idx 0)
+            (setf (gradients-sum bp) new-gradients)
+            (setf (sensitivities bp) new-sensitivities)
+            (format t "~&Accumulate gradient and sensitivity `~d` completed!~%" sample))
+        (push (if g
+                  (matrix-add g (matrix-product sensitivity (transpose input)))
+                  (matrix-product sensitivity (transpose input)))
+              new-gradients)
+        (push (if s (matrix-add s sensitivity) sensitivity)
+              new-sensitivities)))))
+
+#|
+(setf bp5 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
+                           :bias-list '(((-0.48) (-0.13)) 0.48)
+                           :transfer-list (list #'logsig #'purelin)
+                           :derivative-list (list :logsig :purelin)))
+(backpropagation-batch bp5 (list (list 1 (1+ (sin (* (/ pi 4) 1)))) 
+                                  (list -2 (1+ (sin (* (/ pi 4) -2)))) 
+                                 (list 2 (1+ (sin (* (/ pi 4) 2)))))
+                       0.1)
+|#
