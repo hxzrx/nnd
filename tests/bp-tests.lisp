@@ -1,0 +1,22 @@
+
+(in-package #:nnd-tests)
+
+(deftest test-propagation-forward ()
+  (let ((bp (nnd::make-bp-network :weight-list (list (nnd::transpose '((1 -1 1 -1 1 -1 1 -1 -1 1 1)
+                                                                       (1 -1 -1 1 -1 1 -1 1 -1 1 1)))
+                                                     '((1 1 1 1 0 0 0 0 0 0 0)
+                                                      (0 0 0 0 1 1 0 0 1 0 1)
+                                                      (0 0 0 0 1 0 0 1 1 1 0)
+                                                      (0 0 0 0 0 0 1 1 1 0 1))
+                                                     '((1 1 1 1)))
+                                  :bias-list (list (nnd::transpose '((-2 3 0.5 0.5 -1.75 2.25 -3.25 3.75 6.25 -5.75 -4.75)))
+                                                   (nnd::transpose '((-3 -3 -3 -3)))
+                                                   3)
+                                  :transfer-list (list #'nnd::hardlims #'nnd::hardlims #'nnd::hardlims)))
+        (s1 '((1) (1)))
+        (s2 '((1.5) (1.5)))
+        (s3 '((0) (0))))
+    (is (= (nnd::propagation-forward-without-states bp s1) 1))
+    (is (= (nnd::propagation-forward-without-states bp s2) 1))
+    (is (= (nnd::propagation-forward-without-states bp s3) -1))))
+                                                 
