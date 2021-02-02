@@ -14,5 +14,6 @@
   :components ((:file "packages")
                (:file "suite")
                (:file "util-tests")
-               (:file "linear-algebra-tests")))
+               (:file "linear-algebra-tests")
+               (:file "bp-tests")))
                
