@@ -4,6 +4,26 @@
 ;;;; Apply the principles of performance learning to a single-layer linear neural network.
 ;;;; Widrow-Hoff learning is an approximate steepest descent algorithm, in which the performance index is mean square error.
 
+(defclass tapped-delay-line ()
+  ((content :initarg :content
+            :accessor content
+            :type fixed-len-unsafe-fifo
+            :documentation "a fixed length fifo, when a new element comes, the oldest element should go out"))
+  (:documentation "The input signal enters from the left. 
+At the output of the tapped delay line we have an R-dimensional vector, 
+consisting of the input signal at the current time and at delays of from 1 to R-1 time steps"))
+
+(defun make-tapped-delay-line (r-dimension &key (init-element 0))
+  "make an R dimensional tapped delay line, with the initial element with the default value"
+  (make-instance 'tapped-delay-line :content (make-fixed-len-unsafe-fifo r-dimension init-element)))
+
+(defun input-tapped-delay-line (tapped-delay-line new-val)
+  "new input to the tapped-delay-line"
+  (addq (content tapped-delay-line) new-val))
+
+(defmethod outputs-tapped-delay-line (tapped-delay-line)
+  "output column vector, fixed length"
+  (transpose (list (reverse (cdr (unsafe-fifo-hd (content tapped-delay-line)))))))
 
 (defgeneric adaline (input-vec weights-matrix bias-vec &key transfer)
   (:documentation
@@ -115,33 +135,34 @@
 
 ;;;; training with the whole examples
 (defgeneric adaline-training (samples alpha &key init-weights init-bias threshold turns-limit transfer)
-  (:documentation "training a adaline network with samples. samples has the form '((p1 . t1) (p2 . t2) ... (pn . tn), where p is a column vector and t is a number or a column vector, the number or vector element should only be 0 or 1"))
+  (:documentation
+   "training a adaline network with samples. 
+    samples has the form '((p1 . t1) (p2 . t2) ... (pn . tn), 
+    where p is a column vector and t is a number or a column vector, the number or vector element should only be 0 or 1"))
 
 
 (defmethod adaline-training ((samples list) (alpha number)
                              &key (init-weights nil) (init-bias nil bias-supplied-p)
                                (threshold 0.001) (turns-limit 1000000) (transfer #'purelin))
   "training a adaline network with samples, return weights and bias"
-  ;;test (nnd::adaline-training '(((1 1 3) -1) ((1 1 1) 1)) 0.001 :bias-needed-p t)
-  ;;test (nnd::adaline-training '(((1 1 3) -1) ((1 1 1) 1)) 0.001)
   (assert (> alpha 0))
-  (do* ((weights init-weights (car training-result))
+  (do* ((shuffled-samples samples (shuffle samples)) ;the 1st turn is not shuffled so as to verify with the book
+        (weights init-weights (car training-result))
         (bias init-bias (cdr training-result))
         (training-result (if bias-supplied-p
-                             (adaline-training-one-turn samples weights alpha :bias bias :transfer transfer)
-                             (adaline-training-one-turn samples weights alpha            :transfer transfer))
+                             (adaline-training-one-turn shuffled-samples weights alpha :bias bias :transfer transfer)
+                             (adaline-training-one-turn shuffled-samples weights alpha            :transfer transfer))
                          (if bias-supplied-p
-                             (adaline-training-one-turn samples weights alpha :bias bias :transfer transfer)
-                             (adaline-training-one-turn samples weights alpha            :transfer transfer)))
+                             (adaline-training-one-turn shuffled-samples weights alpha :bias bias :transfer transfer)
+                             (adaline-training-one-turn shuffled-samples weights alpha            :transfer transfer)))
         (delta-weights (matrix-sub (car training-result) weights)
                        (matrix-sub (car training-result) weights))
         (delta-sum-squares (sum-squares delta-weights)
                            (sum-squares delta-weights))
-        (sse (sum-squares-errors samples (car training-result) :bias (cdr training-result) :transfer transfer)
-             (sum-squares-errors samples (car training-result) :bias (cdr training-result) :transfer transfer))
+        (sse (sum-squares-errors shuffled-samples (car training-result) :bias (cdr training-result) :transfer transfer)
+             (sum-squares-errors shuffled-samples (car training-result) :bias (cdr training-result) :transfer transfer))
         (turns 1 (incf turns)))
-       ((or (< delta-sum-squares threshold)  ;; be care of the condition, be the convergence of weights, or sum of squares of errors
-            ;(< sse threshold)
+       ((or (< sse threshold)
             (>= turns turns-limit))
         (if (>= turns turns-limit)
             (progn (format t "~&Training Failed, after ~d turns, the weights did not converge, and the sum of squares of errors is still: ~f~%~%" turns sse))
@@ -150,10 +171,11 @@
                    (print-matrix delta-weights)
                    (print-training-result weights bias sse)
                    (list weights bias))))
-    (format t "~%~%Turn: ~d~&Delta sum squares: ~d~&Delta weights: ~%" turns delta-sum-squares)
-    (print-matrix delta-weights)
-    (print-training-result weights bias sse)
-    (terpri)))
+    ;;(format t "~%~%Turn: ~d~&Delta sum squares: ~d~&Delta weights: ~%" turns delta-sum-squares)
+    ;(print-matrix delta-weights)
+    ;(print-training-result weights bias sse)
+    ;(terpri)
+    ))
 
 
 ;;p158, Chinese Edition. Converged to (-3.1910115e-4 1.0002948 3.1910115e-4)
@@ -166,3 +188,12 @@
 ;;(adaline-training '(((1 1) (-1 -1)) ((1 2) (-1 -1)) ((2 -1) (-1 1)) ((2 0) (-1 1)) ((-1 2) (1 -1)) ((-2 1) (1 -1)) ((-1 -1) (1 1)) ((-2 -2) (1 1))) 0.04 :init-weights '((-0.5948  -0.0523) (0.1667  -0.6667)) :init-bias '((0.0131) (0.1667)) :turns-limit 100000 :threshold 0.01)
 
 ;;(adaline-training '(((1 1) (-1 -1)) ((1 2) (-1 -1)) ((2 -1) (-1 1)) ((2 0) (-1 1)) ((-1 2) (1 -1)) ((-2 1) (1 -1)) ((-1 -1) (1 1)) ((-2 -2) (1 1))) 0.04 :init-weights '((1 0) (0 1)) :init-bias '((1) (1)) :turns-limit 100000 :threshold 0.001) ;the first steps are correct, but the result is not, I have not found why.
+
+#+:ignore
+(adaline-training '(((1 -1 -1 -1 1 1 1 1 1 -1 -1 -1 -1 -1 -1 -1) 60)
+                    ((1 1 1 1 1 -1 1 1 1 -1 1 1 -1 -1 -1 -1) 0)
+                    ((1 1 1 1 1 1 -1 -1 1 -1 -1 -1 -1 -1 -1 -1) -60))
+                  0.03
+                  :init-weights '((0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)) 
+                  :init-bias 0
+                  :turns-limit 1000000 :threshold 0.000001)
