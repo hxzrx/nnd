@@ -8,7 +8,6 @@
         :initarg  :tl)))
 
 (defmethod initialize-instance :after ((fifo unsafe-fifo) &key &allow-other-keys)
-  (format t "ssssss~%")
   (let ((empty (list nil)))
     (setf (unsafe-fifo-hd fifo) empty
           (unsafe-fifo-tl fifo) empty)))
@@ -89,15 +88,14 @@
         :type integer))
   (:documentation "the unsafe fifo but has fixed length"))
 
-(defun make-fixed-len-unsafe-fifo (n)
-  (make-instance 'fixed-len-unsafe-fifo :len n))
+(defun make-fixed-len-unsafe-fifo (n content)
+  (make-instance 'fixed-len-unsafe-fifo :len n :init-content content))
 
-(defmethod initialize-instance :after ((fifo fixed-len-unsafe-fifo) &key &allow-other-keys)
-  (format t "len = ~d~%" (len fifo))
+(defmethod initialize-instance :after ((fifo fixed-len-unsafe-fifo) &key init-content &allow-other-keys)
   (with-accessors ((tl unsafe-fifo-tl)) fifo
     (declare (cons tl))
     (dotimes (i (len fifo))
-      (addq fifo i))))
+      (addq fifo init-content))))
       ;;(setf tl (setf (cdr tl) (list nil))))))
 
 (defmethod addq ((q fixed-len-unsafe-fifo) item &key &allow-other-keys)
