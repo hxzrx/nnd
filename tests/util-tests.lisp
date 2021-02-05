@@ -37,5 +37,10 @@
   (is (not (nnd::list-check-rectangle '((1 2 3) (4 5)))))
   (is (not (nnd::list-check-rectangle '((1 2 3) (4 5) (7 8 9))))))
   
-
+(deftest test-quadratic-function ()
+  (let ((qfun1 (nnd::quadratic-function '((10 -6) (-6 10)) '((4) (4))))
+        (x1 '((-1) (-2.5))))
+    (is (funcall qfun1 x1) 7.25)))
+    
+    
 
