@@ -141,3 +141,12 @@
 (defun shuffle (seq)
   "random sorting for a sequence"
   (alexandria:shuffle seq))
+
+(defun quadratic-function (A &optional d c)
+  "quadratic quadratic: F(x) = 1/2 x' A x + d' x + c
+   return the function"
+  (lambda (x) (reduce #'matrix-add
+                      (loop for i in (list (reduce #'matrix-product (list 1/2 (transpose x) A x))
+                                           (when d (reduce #'matrix-product (list (transpose d) x)))
+                                           (when c c))
+                            when i collect i))))
