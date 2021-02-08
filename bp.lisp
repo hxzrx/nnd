@@ -299,7 +299,12 @@ Then, the individual gradients would be averaged to get the total gradient."))
                            :transfer-list (list #'logsig #'purelin)
                            :derivative-list (list :logsig :purelin)))
 (backpropagation-batch bp5 (list (list 1 (1+ (sin (* (/ pi 4) 1)))) 
-                                  (list -2 (1+ (sin (* (/ pi 4) -2)))) 
+                                 (list -2 (1+ (sin (* (/ pi 4) -2)))) 
                                  (list 2 (1+ (sin (* (/ pi 4) 2)))))
                        0.1)
+|#
+#|
+(setf bp6 (make-bp-network :weight-list '(0.4) :bias-list '(0.15)
+                           :transfer-list (list #'logsig) :derivative-list (list :logsig)))
+(backpropagation-batch bp6 (list (list -3 0.5) (list 2 1)) 1)
 |#

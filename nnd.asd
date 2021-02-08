@@ -21,10 +21,12 @@
   :serial t
   :components ((:file "packages")
                (:file "util")
+               (:file "data-objects")
                (:file "linear-algebra")
                (:file "transfer-functions")
                (:file "learner")
                (:file "perception")
                (:file "performance")
-               (:file "widrow-hoff")))
+               (:file "widrow-hoff")
+               (:file "bp")))
 

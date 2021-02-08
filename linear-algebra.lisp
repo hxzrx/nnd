@@ -8,6 +8,10 @@
   "transposing a matrix"
   (apply #'mapcar #'list m))
 
+(defmethod transpose ((m real))
+  "transpose(m) = m"
+  m)
+
 
 ;;;; basic list +-*/
 ;;;; DO NOT use them directly!
@@ -532,10 +536,22 @@
 (defmethod diag (&rest diags)
   "make a diag matrix, parameters are the diags"
   (let ((n (length diags)))
-    (loop for row below n
-          for diag in diags
-          collect (loop for col below n
-                        collect (if (= row col) diag 0)))))
+    (if (= n 1)
+        (car diags)
+        (loop for row below n
+              for diag in diags
+              collect (loop for col below n
+                            collect (if (= row col) diag 0))))))
+
+(defun diag-from-list (diag-list)
+  "make a diag matrix from a list"
+  (if (numberp diag-list)
+      diag-list
+      (let ((n (length diag-list)))
+        (loop for row below n
+              for diag in diag-list
+              collect (loop for col below n
+                            collect (if (= row col) diag 0))))))
 
 ;;;; make a m by n random matrix
 (defgeneric rand-matrix (m n &optional min max)

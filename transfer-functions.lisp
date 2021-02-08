@@ -110,5 +110,44 @@
   "list type"
   (collect-transfer #'poslin net-output))
 
+;;;; compet
 (defgeneric compet (neuron)
   (:documentation "competitive"))
+
+;;;; square
+(defgeneric square (net-output)
+  (:documentation "f(n) = n ^ 2"))
+
+(defmethod square ((n number))
+  "f(n) = n ^ 2"
+  (* n n))
+
+(defmethod square ((net-output list))
+  "list type, f(n) = n ^ 2"
+  (collect-transfer #'square net-output))
+
+;;;; cube
+(defgeneric cube (net-output)
+  (:documentation "f(n) = n ^ 3"))
+
+(defmethod cube ((n number))
+  "f(n) = n ^ 3"
+  (* n n n))
+
+(defmethod cube ((net-output list))
+  "list type, f(n) = n ^ 3"
+  (collect-transfer #'cube net-output))
+
+#+:ignore
+(defgeneric derivative (function-type)
+  (:documentation "return the derivative of the function, 
+                   only cover several transfer functions"))
+
+(defun derivative (fun-type)
+  ""
+  (cond ((eq fun-type :purelin) #'(lambda (x) (declare (ignore x)) 1))
+        ((eq fun-type :logsig)  #'(lambda (x) (* (logsig x) (- 1 (logsig x)))))
+        ((eq fun-type :tansig)  #'(lambda (x) (- 1 (expt (tansig x) 2))))
+        ((eq fun-type :square)  #'(lambda (x) (* 2 x)))
+        ((eq fun-type :cube)    #'(lambda (x) (* 3 x x)))
+        (t (format t "Not implimented yet!"))))

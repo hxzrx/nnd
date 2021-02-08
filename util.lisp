@@ -150,3 +150,10 @@
                                            (when d (reduce #'matrix-product (list (transpose d) x)))
                                            (when c c))
                             when i collect i))))
+
+(defun gradient-at-point (ᐁF point)
+  "calc the gradient of F at point, ᐁF is a list of n-vars functions, and point is an n-dimensional column vector, the result is a column numerical vector. eg. (gradient-at-point (list #'(lambda (x y) (+ x y)) #'(lambda (x y) (- x y))) '((1) (1)))"
+  (transpose (list (loop for f in ᐁF collect (apply f (car (transpose point)))))))
+  
+  
+  
