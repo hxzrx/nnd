@@ -414,6 +414,18 @@
         for row2 in matrix2
         collect (append row1 row2)))
 
+(defmethod make-augmented ((n1 number) (n2 number))
+  (list (list n1 n2)))
+
+(defmethod make-augmented ((n1 number) (matrix2 list))
+  (assert (= (car (matrix-size matrix2)) 1))
+  (list (cons n1 (car matrix2))))
+
+(defmethod make-augmented ((matrix1 list) (n2 number))
+  (assert (= (car (matrix-size matrix1)) 1))
+  (list (append (car matrix1) (list n2))))
+
+
 (defgeneric matrix-inverse (matrix)
   (:documentation "calc the reverse of matrix"))
 
@@ -553,6 +565,14 @@
               collect (loop for col below n
                             collect (if (= row col) diag 0))))))
 
+(defun make-single (len single-place)
+  "make a column vector with 1 in the specified placed and zeros else where"
+  (assert (<= single-place (1- len)))
+  (assert (and (> len 0) (>= single-place 0)))
+  (if (and (= len 1) (= single-place 0)) 1
+      (transpose (list (loop for i from 0 below len
+                             collect (if (= i single-place) 1 0))))))
+                        
 ;;;; make a m by n random matrix
 (defgeneric rand-matrix (m n &optional min max)
   (:documentation "make a rand matrix with m rows and n columns, each element between min and max, if min or max was not provided, the elements were real random numbers between 0 and 1"))
