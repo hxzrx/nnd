@@ -155,5 +155,17 @@
   "calc the gradient of F at point, ᐁF is a list of n-vars functions, and point is an n-dimensional column vector, the result is a column numerical vector. eg. (gradient-at-point (list #'(lambda (x y) (+ x y)) #'(lambda (x y) (- x y))) '((1) (1)))"
   (transpose (list (loop for f in ᐁF collect (apply f (car (transpose point)))))))
   
+(defgeneric matrix-flatten (m)
+  (:documentation "flatten a matrix and convert it to a row vector"))
+
+(defmethod matrix-flatten ((m list))
+  "eg. '((1 2) (3 4)) -》 '((1 2 3 4))"
+  (list (reduce #'append m)))
   
-  
+(defun make-matrix-from-template (t-matrix lst)
+  "make a matrix, which elements will be the ones in `lst and has the same size as `t-matrix"
+  (if (listp t-matrix)
+      (loop for row in t-matrix
+            collect (loop for col in row
+                          collect (pop lst)))
+      (pop lst))) ; numberp
