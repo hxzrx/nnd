@@ -28,5 +28,6 @@
                (:file "perception")
                (:file "performance")
                (:file "widrow-hoff")
-               (:file "bp")))
+               (:file "bp")
+               (:file "bp-variations")))
 
