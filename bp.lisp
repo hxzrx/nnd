@@ -186,7 +186,7 @@
          (dF (reverse (derivatives bp)))
          (target (if (numberp (cadr sample)) (cadr sample) (transpose (list (cadr sample)))))
          )
-    (do* ((idx (length (weights bp)) (decf idx))
+    (do* ((idx (1- (length (weights bp))) (decf idx))
           (next-weight nil (car cur-weights))
           (cur-weights weight-list (cdr cur-weights))
           (cur-bias (pop bias-list) (pop bias-list))
