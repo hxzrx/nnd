@@ -61,9 +61,9 @@
 (defun posioning-with-predicate (lst &optional &key place tmp idx key test)
   "find the place in the lst at which pfun always returns true when compared with other element in the list,
    key and test parameter should be provided!
-   eg. (posioning-with-predicate '(1 4 3 5 3) :key #'identity :test #'>) 
+   eg. (posioning-with-predicate '(1 4 3 5 3) :key #'identity :test #'>)
        it returns 3, which is the place of element 5"
-;;  (format t "~&place: ~d, tmp: ~d, idx: ~d, key: ~d, test: ~d" place tmp idx key test)  
+;;  (format t "~&place: ~d, tmp: ~d, idx: ~d, key: ~d, test: ~d" place tmp idx key test)
   (cond ((null place) (posioning-with-predicate (cdr lst) :place 0 :idx 0 :tmp (funcall key (car lst)) :key key :test test))
         ((null lst) place)
         (t (incf idx)
@@ -71,7 +71,7 @@
              (if (funcall test cmp-elem tmp)
                  (posioning-with-predicate (cdr lst) :place idx   :idx idx :tmp cmp-elem :key key :test test)
                  (posioning-with-predicate (cdr lst) :place place :idx idx :tmp tmp      :key key :test test))))))
-               
+
 (defun posioning-greatest-pivot (matrix nth-pivot)
   "find the row id of the matrix that has the greast absolute value under the pivot place"
   (+ (posioning-with-predicate (nthcdr nth-pivot matrix) :key #'(lambda (x) (abs (nth nth-pivot x))) :test #'>)
@@ -81,7 +81,7 @@
   "check if lst is of all zeros"
   (if (null lst) t
       (and (= (car lst) 0) (zeros-row-p (cdr lst)))))
-  
+
 (defun zeros-p (matrix)
   "check if all of the elements are 0"
   (if (numberp matrix) (= matrix 0)
@@ -154,14 +154,14 @@
 (defun gradient-at-point (ᐁF point)
   "calc the gradient of F at point, ᐁF is a list of n-vars functions, and point is an n-dimensional column vector, the result is a column numerical vector. eg. (gradient-at-point (list #'(lambda (x y) (+ x y)) #'(lambda (x y) (- x y))) '((1) (1)))"
   (transpose (list (loop for f in ᐁF collect (apply f (car (transpose point)))))))
-  
+
 (defgeneric matrix-flatten (m)
   (:documentation "flatten a matrix and convert it to a row vector"))
 
 (defmethod matrix-flatten ((m list))
   "eg. '((1 2) (3 4)) -》 '((1 2 3 4))"
   (list (reduce #'append m)))
-  
+
 (defun make-matrix-from-template (t-matrix lst)
   "make a matrix, which elements will be the ones in `lst and has the same size as `t-matrix"
   (if (listp t-matrix)
@@ -169,3 +169,19 @@
             collect (loop for col in row
                           collect (pop lst)))
       (pop lst))) ; numberp
+
+(defgeneric data-partition (data part-ratio)
+  (:documentation "according to each part's ratio, partition `data into several parts"))
+
+(defmethod data-partition ((data list) (part-ratio list))
+  "eg. part-ratio: '(1 1 1), denote three parts and the parts' number is 1:1:1,
+note that some part will get nil if iss ratio is too small"
+  (let* ((total-ratio (apply #'+ part-ratio))
+         (total-data (length data))
+         (accumulate-ratio (reverse (mapcar #'(lambda (x) (apply #'+ x))
+                                            (mapcon #'list (reverse part-ratio)))))
+         (part-interval (loop for i in accumulate-ratio
+                              collect (round (* total-data (/ i total-ratio))))))
+    (loop for interval>= in (cons 0 part-interval)
+          for interval< in part-interval
+          collect (subseq data interval>= interval<))))
