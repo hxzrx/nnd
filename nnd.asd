@@ -4,7 +4,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defsystem #:nnd
-  :description "Common Lisp code for \"Neural Network Design, 2nd\", Martin T. Hagan. 
+  :description "Common Lisp code for \"Neural Network Design, 2nd\", Martin T. Hagan.
                 Including a linear algebra library from scratch."
   :author "He Xiang-zhi <xz.he@qq.com>"
   :maintainer "He Xiang-zhi <xz.he@qq.com>"
@@ -29,5 +29,5 @@
                (:file "performance")
                (:file "widrow-hoff")
                (:file "bp")
-               (:file "bp-variations")))
-
+               (:file "bp-variations")
+               (:file "generalization")))
