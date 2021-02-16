@@ -185,3 +185,22 @@ note that some part will get nil if iss ratio is too small"
     (loop for interval>= in (cons 0 part-interval)
           for interval< in part-interval
           collect (subseq data interval>= interval<))))
+
+(defun successive-property-list-p (lst &key test)
+  "test if `lst has some successor property"
+  (if (cddr lst)
+    (and (funcall test (car lst) (cadr lst))
+         (successive-property-list-p (cdr lst) :test test))
+    (funcall test (car lst) (cadr lst))))
+
+(defun strict-ascending-list-p (lst)
+  (successive-property-list-p lst :test #'<))
+
+(defun ascending-list-p (lst)
+  (successive-property-list-p lst :test #'<=))
+
+(defun strict-descending-list-p (lst)
+  (successive-property-list-p lst :test #'>))
+
+(defun descending-list-p (lst)
+  (successive-property-list-p lst :test #'>=))
