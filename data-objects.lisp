@@ -11,7 +11,7 @@
   (let ((empty (list nil)))
     (setf (unsafe-fifo-hd fifo) empty
           (unsafe-fifo-tl fifo) empty)))
-  
+
 (defun make-unsafe-fifo ()
   (make-instance 'unsafe-fifo))
 
@@ -88,7 +88,7 @@
         :type integer))
   (:documentation "the unsafe fifo but has fixed length"))
 
-(defun make-fixed-len-unsafe-fifo (n content)
+(defun make-fixed-len-unsafe-fifo (n &key content)
   (make-instance 'fixed-len-unsafe-fifo :len n :init-content content))
 
 (defmethod initialize-instance :after ((fifo fixed-len-unsafe-fifo) &key init-content &allow-other-keys)
