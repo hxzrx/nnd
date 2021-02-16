@@ -39,7 +39,7 @@
           (d (- b (* (- 1 tao) (- b a)))
              (if Fc<Fd?
                  c-prev
-                 (- b (* (- 1 tao) (- b a)))))                   
+                 (- b (* (- 1 tao) (- b a)))))
           (Fc (eval-fun f init-point direction c)
               (if Fc<Fd?
                   (eval-fun f init-point direction c)
@@ -54,12 +54,12 @@
       )))
 #|
 ;;page 233, P12.4
-(setf pfun2 (quadratic-function '((2 1)(1 2))))                    
+(setf pfun2 (quadratic-function '((2 1)(1 2))))
 (golden-section-search pfun2 '((0.8) (-0.25)) '((-1.35) (-0.3)) 0.15 0.6)
 |#
 
 (defun variable-learning-rate (f gradient init-point alpha gamma eta rho zeta &optional (tolerance 0.01))
-  "f is the performance index function, 
+  "f is the performance index function,
 gradient is the list of gradient (presented as functions) for each variable
 alpha is the learning rate
 gamma is the momentum
@@ -164,7 +164,7 @@ returns (cons new-point new-alpha)"
                (incf (squared-error-sum lmbp) (inner-product-self (matrix-sub target a))))))
   (squared-error-sum lmbp))
 
-  
+
 #+:ignore
 (setf lmbp1 (make-lmbp-network :weight-list '(1 2)
                                :bias-list '(0 1)
@@ -218,9 +218,9 @@ note this return a row vector, not column vector"
     (setf (biases network) new-biases)
     (list new-weights new-biases)))
 
-  
+
 (defmethod marquardt-sensitivity-init (derivative net-inputs)
-  "(12.46), Marquardt sensitivity, for the last layer, Sᴹ = -1 ∂Fᴹ(nᴹ), 
+  "(12.46), Marquardt sensitivity, for the last layer, Sᴹ = -1 ∂Fᴹ(nᴹ),
 it's a matrix, not a column vector compared to bp's sensitivity"
   (let ((F^M (if (numberp net-inputs)
                  (funcall derivative net-inputs)
@@ -236,8 +236,8 @@ it's a matrix, not a column vector compared to bp's sensitivity"
     (reduce #'matrix-product (list F^m (transpose weight+1) sensitivity+1))))
 
 (defun jacobian-block (marquardt-sensitivity weights inputs &key type)
-  "First, make a matrix with the same size of weights or biases, the element of this matrix is corresponding to the Jacobian matrix's respected element. 
-Second, flat this matrix and get an row vector. 
+  "First, make a matrix with the same size of weights or biases, the element of this matrix is corresponding to the Jacobian matrix's respected element.
+Second, flat this matrix and get an row vector.
 Third, append weights' Jacobian row vector and biases' Jacobian row vector and get an row vector.(This step is executed in other place.)
 The steps above get a row corresponding to one final output's component of partial derivative, so loop over the sensitivity matrix, we will get the full jacobian matrix' block on this layer."
   ;(format t "~&sens: ~d, weights: ~d, inputs: ~d, tpye: ~d~%" marquardt-sensitivity weights inputs type)
@@ -256,7 +256,7 @@ The steps above get a row corresponding to one final output's component of parti
 
 (defmethod calc-jacobian% ((lmbp lmbp-network) (sample list))
   "calc the rows of the jacobian matrix corresponding to one sample"
-  
+
   (let* ((a (propagation-forward lmbp (if (numberp (car sample))
                                           (car sample)
                                           (list (car sample)))));propagation forward
@@ -284,11 +284,12 @@ The steps above get a row corresponding to one final output's component of parti
           (jacobian-block (make-augmented jacobian-block-weight jacobian-block-bias)
                           (make-augmented (make-augmented jacobian-block-weight jacobian-block-bias)
                                           jacobian-block))
-                          
+
           )
          ((= idx 0)
           ;;(format t "~&jacobian-block: ~d~%" jacobian-block)
-          (setf (jacobian lmbp) (append (jacobian lmbp) jacobian-block)))
+          (setf (jacobian lmbp) (append (jacobian lmbp) jacobian-block))
+          (jacobian lmbp))
       ;;(format t "~&jacobian-block: ~d, jacobian-matrix: ~d~%" jacobian-block jacobian-matrix)
       )))
 
@@ -304,10 +305,11 @@ The steps above get a row corresponding to one final output's component of parti
 |#
 
 (defmethod calc-jacobian ((lmbp lmbp-network) (samples list))
-  "append jacobian matrix' blocks with respect to each sample, and get the final jacobian matrix, 
+  "append jacobian matrix' blocks with respect to each sample, and get the final jacobian matrix,
 the side effect is to write into the jacobian slot of `lmbp"
   (dolist (sample samples (jacobian lmbp))
-    (calc-jacobian% lmbp sample)))
+    (calc-jacobian% lmbp sample))
+  (jacobian lmbp))
 
 #|
 ;; Solved problem, P12.5, page 234, Chinese Ed.
@@ -345,7 +347,9 @@ the side effect is to write into the jacobian slot of `lmbp"
           (gradient (reduce #'matrix-product (list 2 (transpose jacobian) x))
                     (reduce #'matrix-product (list 2 (transpose jacobian) x)))
           )
-         ((<(norm gradient) tolerance) (format t "~&lmbp converged. Gradient norm: ~f~%" (norm gradient)))
+         ((<(norm gradient) tolerance)
+          (format t "~&lmbp converged. Gradient norm: ~f~%" (norm gradient))
+          lmbp)
       (do* ((hessian-approx-inv (hessian-approximation JᵀJ mu)
                                 (hessian-approximation JᵀJ mu))
             (Δx (reduce #'matrix-product (list -1 hessian-approx-inv (transpose jacobian) x))
