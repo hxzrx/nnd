@@ -43,15 +43,15 @@
                   :accessor sensitivities
                   :type list
                   :initform nil
-                  :documentation "the list of sensitivities for the layers, 
-                                  this need only two values in the iteration, 
+                  :documentation "the list of sensitivities for the layers,
+                                  this need only two values in the iteration,
                                   but I keep the whole for the sake of checking the intermediate steps,
                                   used in batch bp")
    (gradients-sum :initarg :gradients-sum
                   :accessor gradients-sum
                   :type list
                   :initform nil
-                  :documentation "∑(sensitive) * (input)ᵀ, sum over the examples for each layer, 
+                  :documentation "∑(sensitive) * (input)ᵀ, sum over the examples for each layer,
                                   used in batch learning, used in batch bp"))
    (:documentation "a neural network learner, for multi-layers"))
 
@@ -78,7 +78,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; get the resuls of the network, as well gathering all the intermediate states
 (defgeneric propagation-forward% (bp input weights biases transfers)
-  (:documentation "collect all the intermediate states and change the respect slots (inputs, net-inputs, outputs) 
+  (:documentation "collect all the intermediate states and change the respect slots (inputs, net-inputs, outputs)
                    of the instance of bp"))
 
 (defmethod propagation-forward% ((bp bp-network) (input list) (weights list) (biases list) (transfers list))
@@ -130,7 +130,7 @@
 (propagation-forward bp1 '((-1) (1)))
 
 (setf bp2 (make-bp-network :weight-list '(-1 -2)
-                           :bias-list '(1 1)                                                                                     
+                           :bias-list '(1 1)
                            :transfer-list (list #'tansig #'tansig)))
 (propagation-forward-without-states bp2 -1)
 (propagation-forward bp2 -1)
@@ -197,7 +197,8 @@
                        (when derivative (sensitivity-update derivative net-input next-weight sensitivity))))
          ((= idx 0)
           (setf (weights bp) new-weights)
-          (setf (biases bp) new-bias))
+          (setf (biases bp) new-bias)
+          bp)
       (push (matrix-sub (car cur-weights) (reduce #'matrix-product
                                                   (list alpha
                                                         sensitivity
@@ -213,7 +214,7 @@
 (defmethod backpropagation ((bp bp-network) (samples list) (alpha real))
   (dolist (sample samples)
     (backpropagation% bp sample alpha)))
-  
+
 ;;;; p186, 11.2.3 example
 #|
 (setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
@@ -221,8 +222,8 @@
                            :transfer-list (list #'logsig #'purelin)
                            :derivative-list (list :logsig :purelin)))
 (backpropagation% bp3 (list 1 (1+ (sin (/ pi 4)))) 0.1)
-(backpropagation  bp3 (list (list 1 (1+ (sin (* (/ pi 4) 1)))) 
-                            (list -2 (1+ (sin (* (/ pi 4) -2)))) 
+(backpropagation  bp3 (list (list 1 (1+ (sin (* (/ pi 4) 1))))
+                            (list -2 (1+ (sin (* (/ pi 4) -2))))
                             (list 2 (1+ (sin (* (/ pi 4) 2))))) 0.1)
 
 ;;;; p198, P11.7
@@ -234,8 +235,8 @@
 |#
 
 (defgeneric backpropagation-batch (bp samples alpha)
-  (:documentation "The total gradient of the mean square error is the mean of the gradients of the individual squared errors. 
-Therefore, to implement a batch version of the backpropagation algorithm, 
+  (:documentation "The total gradient of the mean square error is the mean of the gradients of the individual squared errors.
+Therefore, to implement a batch version of the backpropagation algorithm,
 we would executive propagate forward and calculate the sensitivities for all of the inputs in the training set.
 Then, the individual gradients would be averaged to get the total gradient."))
 
@@ -298,8 +299,8 @@ Then, the individual gradients would be averaged to get the total gradient."))
                            :bias-list '(((-0.48) (-0.13)) 0.48)
                            :transfer-list (list #'logsig #'purelin)
                            :derivative-list (list :logsig :purelin)))
-(backpropagation-batch bp5 (list (list 1 (1+ (sin (* (/ pi 4) 1)))) 
-                                 (list -2 (1+ (sin (* (/ pi 4) -2)))) 
+(backpropagation-batch bp5 (list (list 1 (1+ (sin (* (/ pi 4) 1))))
+                                 (list -2 (1+ (sin (* (/ pi 4) -2))))
                                  (list 2 (1+ (sin (* (/ pi 4) 2)))))
                        0.1)
 |#
