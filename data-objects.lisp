@@ -66,6 +66,9 @@
 
 (defsetf contents set-contents)
 
+(defmethod get-contents ((q unsafe-fifo))
+  (with-accessors ((hd unsafe-fifo-hd)) q
+    (cdr hd)))
 
 (defmethod findq ((q unsafe-fifo) val &rest args)
   (with-accessors ((hd  unsafe-fifo-hd)) q
