@@ -225,9 +225,9 @@ note that some part will get nil if iss ratio is too small"
 
 (defun neurons-from-weights (weights)
   "for a R-S¹-S²-...-Sᴹ network, return (list R S¹ S² ... Sᴹ) when the network's weights is given"
-  (cons (car (matrix-size (car weights)))
+  (cons (cdr (matrix-size (car weights)))
         (loop for w in weights
-              collect (cdr (matrix-size w)))))
+              collect (car (matrix-size w)))))
 
 (defun restore-matrices-rank% (lst &optional (accu nil))
   "'(2 3 1 3) -> ((3 2) (1 3) (3 1))"
@@ -241,5 +241,10 @@ note that some part will get nil if iss ratio is too small"
 
 (defun neurons-to-random-weights (neurons)
   "make a list of weights the neurons are provided for each layer, this function is used in initializing a network randomly"
-  (loop for rank in (restore-matrices-rank neurons)
-        collect (rand-matrix (first rank) (second rank))))
+  (loop for (row col) in (restore-matrices-rank neurons)
+        collect (rand-matrix row col)))
+
+(defun neurons-to-random-biases (neurons)
+  "make a list of biases the neurons are provided for each layer, this function is used in initializing a network randomly"
+  (loop for (row nil) in (restore-matrices-rank neurons)
+        collect (rand-matrix row 1)))
