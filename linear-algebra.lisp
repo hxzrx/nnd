@@ -46,7 +46,7 @@
   (mapcar #'(lambda (x) (/ x n)) v))
 
 (defun basic-list-list* (v1 v2)
-  "a column vector multiples a row vector, here v1 and v2 are both lists, 
+  "a column vector multiples a row vector, here v1 and v2 are both lists,
    eg: (1 2 3)*(1 2 3) is (transpose (1 2 3)) * (1 2 3), the result is a rank one matrix, ((1 2 3) (2 4 6) (3 6 9))"
   (assert (list-length-equal v1 v2))
   (assert (list-check-type v1 'number))
@@ -137,7 +137,7 @@
 (defmethod matrix-add ((matrix1 number) (matrix2 number))
   "number + number"
   (+ matrix1 matrix2))
-  
+
 ;;;; matrix subtraction
 (defgeneric matrx-sub (matrix1 matrix2)
   (:documentation "m1 - m2"))
@@ -178,7 +178,7 @@
         collect
         (basic-list-scalar/ row n)))
 
-  
+
 ;;;; matrix multiply matrix
 (defgeneric rank-one-matrix-product (col-vec row-vec)
   (:documentation "n*1 vector multiply 1*n vector"))
@@ -343,7 +343,7 @@
   (if (= elim-idx square)
       matrix
       (row-elimination-up-down%% (row-elimination-up-down% matrix elim-idx) square (incf elim-idx))))
-  
+
 (defmethod row-elimination-up-down ((matrix list))
   "row elimination, for all columns! the result is an upper triangle"
   (let ((size (matrix-size matrix)))
@@ -352,7 +352,7 @@
 
 ;;;; row elimination, down to up, the input matrix is an upper triangle matrix, and the result is an diag matrix
 (defgeneric row-elimination-down-up (matrix)
-  (:documentation "row elimination, the resule is an diag triangle matrix, 
+  (:documentation "row elimination, the resule is an diag triangle matrix,
                    this should be restricted that the matrix is already an upper triangle"))
 
 (defun row-elimination-down-up% (matrix pivot-id)
@@ -360,7 +360,7 @@
   ;;(print-matrix matrix)
   (if (= pivot-id -1)
       matrix
-      (row-elimination-down-up% 
+      (row-elimination-down-up%
        (let* ((pivot-row (nth pivot-id matrix))
               (pivot-val (nth pivot-id pivot-row))
               (row-num (length matrix)))
@@ -375,7 +375,7 @@
                                                    (basic-list-scalar* pivot-row
                                                                        (/ (nth pivot-id (nth r matrix)) pivot-val))))))))
          (1- pivot-id))))
-  
+
 (defmethod row-elimination-down-up ((matrix list))
   "row elimination, down to top, this step will get an lower triangle.
    this will only affect on the max top-left square submatrix"
@@ -404,7 +404,7 @@
 
 ;;;; make an augmented matrix
 (defgeneric make-augmented (matrix1 matrix2)
-  (:documentation "make the augmented matrix with matrix1 and matrix2, 
+  (:documentation "make the augmented matrix with matrix1 and matrix2,
                    if A = [v1 v2 ... vm], B= [w1 w2 ... vn], the augmented matrix is [v1 v2 ... vm w1 w2 ... wn]"))
 
 (defmethod make-augmented ((matrix1 list)  (matrix2 list))
@@ -442,7 +442,7 @@
           nil))))
 
 (defgeneric matrix-pseudoinverse (matrix)
-  (:documentation "Moore-Penrose pseudoinverse, 
+  (:documentation "Moore-Penrose pseudoinverse,
                    when N(rows) > N(columns), and the columns are independent, P+ = inverse(P'P) P'
                    when N(rows) < N(columns), and the rows are independent, P+ = P' inverse(PP')"))
 
@@ -531,7 +531,7 @@
   (if (null matrix) t
       (and (list-given-place-1-others-0 (car matrix) idx 0 epsilon)
            (eye-p% (cdr matrix) (1+ idx) epsilon))))
-      
+
 (defgeneric eye-p (matrix)
   (:documentation "check if m is an identity matrix"))
 
@@ -541,7 +541,7 @@
     (assert (= (car size) (cdr size)))
     (eye-p% matrix 0)))
 
-  
+
 (defgeneric diag (&rest diags)
   (:documentation "make a diagonal matrix"))
 
@@ -572,7 +572,7 @@
   (if (and (= len 1) (= single-place 0)) 1
       (transpose (list (loop for i from 0 below len
                              collect (if (= i single-place) 1 0))))))
-                        
+
 ;;;; make a m by n random matrix
 (defgeneric rand-matrix (m n &optional min max)
   (:documentation "make a rand matrix with m rows and n columns, each element between min and max, if min or max was not provided, the elements were real random numbers between 0 and 1"))
@@ -592,8 +592,8 @@
                collect (loop for col from 0 below n
                              collect (+ min (random (- max min))))))
         (t (error "max < min"))))
-                          
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;            
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;; determinant
 (defgeneric make-submatrix (matrix i j)
@@ -710,7 +710,7 @@
   "check if the columns of matrix are independent"
   (let ((matrixT (transpose matrix)))
     (if (= (length matrixT) (matrix-rank matrixT)) t nil)))
-  
+
 
 ;;;; solve linear equations
 
@@ -756,7 +756,7 @@
 ;;;; orthogonalization
 (defgeneric orthogonalization (matrix)
   (:documentation
-   "Gram-Schmidt Orthogonalization. 
+   "Gram-Schmidt Orthogonalization.
     For n independent vector y1, ... , yn, transfer them to n orthogonalized vetors v1, ... , vn
     v1 = y1
     vk = yk - \sum_{i=1}^{k-1}(vi yk) /(vi vi) vi
@@ -814,7 +814,7 @@
                                         (* 4 (- (* a d) (* b c))))))
                     2))))
         (t (format t "~&Not implemented.~%"))))
-                 
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -830,7 +830,7 @@
   (:documentation "the second order derivative of the function along the direction. the result is (p Gradient) / norm(p)"))
 
 (defmethod directional-derivative-2 ((direction list) (hessian list))
-  "second order directional derivative, 
+  "second order directional derivative,
    direction should be an column vector, and hessian is the Hessian matrix"
   (matrix-product (matrix-product (transpose direction) hessian) direction))
 
@@ -845,3 +845,22 @@
   (loop for row in matrix
         sum (loop for element in row
                   sum(* element element))))
+
+;;;; create matrices from template
+(defun make-matrix-from-template (t-matrix lst)
+  "make a matrix, which elements will be the ones in `lst and has the same size as `t-matrix"
+  (if (listp t-matrix)
+      (loop for row in t-matrix
+            collect (loop for col in row
+                          collect (pop lst)))
+      (pop lst))) ; numberp
+
+(defgeneric make-random-matrix-from-template (template-matrix &optional min max)
+  (:documentation "make a matrix that has the same rank as template-matrix, and its elements will be random.
+if min and max were nil, the elements will be real number in [0, 1]"))
+
+(defmethod make-random-matrix-from-template ((template-matrix list) &optional min max)
+  (let* ((rank (matrix-size template-matrix))
+         (row-num (car rank))
+         (col-num (cdr rank)))
+    (rand-matrix row-num col-num min max)))
