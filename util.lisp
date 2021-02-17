@@ -162,14 +162,6 @@
   "eg. '((1 2) (3 4)) -》 '((1 2 3 4))"
   (list (reduce #'append m)))
 
-(defun make-matrix-from-template (t-matrix lst)
-  "make a matrix, which elements will be the ones in `lst and has the same size as `t-matrix"
-  (if (listp t-matrix)
-      (loop for row in t-matrix
-            collect (loop for col in row
-                          collect (pop lst)))
-      (pop lst))) ; numberp
-
 (defgeneric data-partition (data part-ratio)
   (:documentation "according to each part's ratio, partition `data into several parts"))
 
