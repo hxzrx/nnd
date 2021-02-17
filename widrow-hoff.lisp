@@ -9,13 +9,13 @@
             :accessor content
             :type fixed-len-unsafe-fifo
             :documentation "a fixed length fifo, when a new element comes, the oldest element should go out"))
-  (:documentation "The input signal enters from the left. 
-At the output of the tapped delay line we have an R-dimensional vector, 
+  (:documentation "The input signal enters from the left.
+At the output of the tapped delay line we have an R-dimensional vector,
 consisting of the input signal at the current time and at delays of from 1 to R-1 time steps"))
 
 (defun make-tapped-delay-line (r-dimension &key (init-element 0))
   "make an R dimensional tapped delay line, with the initial element with the default value"
-  (make-instance 'tapped-delay-line :content (make-fixed-len-unsafe-fifo r-dimension init-element)))
+  (make-instance 'tapped-delay-line :content (make-fixed-len-unsafe-fifo r-dimension :content init-element)))
 
 (defun input-tapped-delay-line (tapped-delay-line new-val)
   "new input to the tapped-delay-line"
@@ -87,7 +87,7 @@ consisting of the input signal at the current time and at delays of from 1 to R-
         (if bias-supplied-p
             (adaline-training-one-turn% (cdr samples) (car updated-params) alpha :bias (cdr updated-params) :transfer transfer)
             (adaline-training-one-turn% (cdr samples) (car updated-params) alpha :transfer transfer)))))
-            
+
 
 ;;;; training one turn with all sample
 (defgeneric adaline-training-one-turn (samples weights alpha &key bias transfer)
@@ -95,7 +95,7 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 
 (defmethod adaline-training-one-turn ((samples list) (weights list) (alpha number)
                                          &key (bias nil bias-supplied-p) (transfer #'purelin))
-  "training one turn with all samples, return a cons of weights and bias. 
+  "training one turn with all samples, return a cons of weights and bias.
    for simplicity, input and labels in each sample were a list of numbers, and they will transpose to column vectors later.
    eg. '( ((1 2 3) (1 1))  ((1 1 1) (0 0)) )"
   ;;test (adaline-training-one-turn '(((1 -1 -1) -1) ((1 1 -1) 1)) nil 0.01)
@@ -136,8 +136,8 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 ;;;; training with the whole examples
 (defgeneric adaline-training (samples alpha &key init-weights init-bias threshold turns-limit transfer)
   (:documentation
-   "training a adaline network with samples. 
-    samples has the form '((p1 . t1) (p2 . t2) ... (pn . tn), 
+   "training a adaline network with samples.
+    samples has the form '((p1 . t1) (p2 . t2) ... (pn . tn),
     where p is a column vector and t is a number or a column vector, the number or vector element should only be 0 or 1"))
 
 
@@ -194,6 +194,6 @@ consisting of the input signal at the current time and at delays of from 1 to R-
                     ((1 1 1 1 1 -1 1 1 1 -1 1 1 -1 -1 -1 -1) 0)
                     ((1 1 1 1 1 1 -1 -1 1 -1 -1 -1 -1 -1 -1 -1) -60))
                   0.03
-                  :init-weights '((0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)) 
+                  :init-weights '((0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
                   :init-bias 0
                   :turns-limit 1000000 :threshold 0.000001)
