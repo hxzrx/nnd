@@ -9,26 +9,28 @@ test-set: a data set for estimating error,
 performance-function: a function to compute the error, this function may be implemented by a partial function"
   (funcall performance-function
            (loop for (data target) in test-set
-                 collect (cons target  ; get (target . output) cons
+                 collect (list target  ; get (target  output) list
                                (funcall output-function learner data)))))
 
 (defun equare-error-sum-f ()
-  "performance index: Σ(t-a)ᵀ(t-a)"
+  "performance function: Σ(t-a)ᵀ(t-a)"
   #'(lambda (target-output-cons)
-      (loop for (target . output) in target-output-cons
+      (loop for (target output) in target-output-cons
             sum (matrix-product (transpose (matrix-sub target output))
                                 (matrix-sub target output)))))
 
 (defun equare-error-sum-penalty-f (net-parameters beta alpha)
-  "performance index: βΣ(t-a)ᵀ(t-a) + αΣx²,
+  "performance function: βΣ(t-a)ᵀ(t-a) + αΣx²,
 net-parameters is a column vector of the net's parameters(weights and biases)"
   #'(lambda (target-output-cons)
-      (+ (* beta (loop for (target . output) in target-output-cons
+      (+ (* beta (loop for (target output) in target-output-cons
                        sum (matrix-product (transpose (matrix-sub target output))
                                            (matrix-sub target output))))
          (* alpha (matrix-product (transpose net-parameters)
                                   net-parameters)))))
 
+
+;;;; early stopping method for improving generalization
 (defun early-stopping% (network training-f train-set validation-set performance-f &optional (error-inc-threshold 3))
   "If training is stopped before the minimum error sum is reached, then the network will be less likely to overfit.
 Use cross-validation to decide when to stop."
@@ -59,3 +61,6 @@ Use cross-validation to decide when to stop."
     (format t "~&Training stopped, error sum = ~f~%"
             (funcall performance-f network test-set))
     network))
+
+
+;;;; Bayesian regularization method for improving generalization
