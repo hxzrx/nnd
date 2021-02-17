@@ -115,7 +115,7 @@ returns (cons new-point new-alpha)"
                         :type list
                         :initform nil
                         :documentation "the list of marquardt-sensitives of all the parameters")
-   (neuron-nums :initarg :neuron-nums
+   #+:ignore(neuron-nums :initarg :neuron-nums
                 :accessor neuron-nums
                 :type list
                 :initform nil
@@ -142,10 +142,10 @@ returns (cons new-point new-alpha)"
 
 (defmethod initialize-instance :after ((lmbp lmbp-network) &key &allow-other-keys)
   ""
-  (flet ((layer-param-sum (a) (+ (car a) (1+ (cdr a)))))
-    (with-accessors ((neurons neuron-nums)
+  (flet ((layer-param-sum (a) (* (cdr a) (1+ (car a))))) ; add 1 to denote the bias num
+    (with-accessors (;(neurons neuron-nums)
                      (parameters parameter-num)) lmbp
-      (setf neurons (loop for w in (weights lmbp) collect (if (numberp w) 1 (length w))))
+      ;(setf neurons (loop for w in (weights lmbp) collect (if (numberp w) 1 (length w))))
       (setf parameters (loop for w in (weights lmbp) sum (if (numberp w) 2 (layer-param-sum (matrix-size w))))))))
 
 (defun reset-squared-error-sum! (lmbp)
