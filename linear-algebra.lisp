@@ -585,12 +585,28 @@
         ((or (and min (null max)) (and max (null min)))
          (loop for row from 0 below m
                collect (loop for col from 0 below n
-                             collect (random min))))
+                             collect (* (signum (or min max))
+                                        (random (abs (or min max)))))))
         ((and min max)
-         (assert (> max min))
-         (loop for row from 0 below m
-               collect (loop for col from 0 below n
-                             collect (+ min (random (- max min))))))
+         (assert (>= max min))
+         (if (> max min)
+             (loop for row from 0 below m
+                   collect (loop for col from 0 below n
+                                 collect (+ min (random (- max min)))))
+             (loop for row from 0 below m
+                   collect (loop for col from 0 below n
+                                 collect min))))
+        (t (error "max < min"))))
+
+(defmethod rand-matrix ((m (eql 1)) (n (eql 1)) &optional min max)
+  "special case, 1 * 1 matrix is a number"
+  (cond ((and (null min) (null max)) (random 1.0))
+        ((or (and min (null max)) (and max (null min)))
+         (* (signum (or min max))
+            (random (abs (or min max)))))
+        ((and min max)
+         (assert (>= max min))
+         (if (> max min) (+ min (random (- max min))) min))
         (t (error "max < min"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
