@@ -256,7 +256,7 @@
 
 (defmethod matrix-size ((m number))
   "Return a cons (rows . cols). If m is not rectangle, return nil."
-  1)
+  (cons 1 1))
 
 ;;;; ith row of a matrix
 (defgeneric nth-row (matrix nth)
