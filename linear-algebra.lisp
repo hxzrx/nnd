@@ -880,3 +880,7 @@ if min and max were nil, the elements will be real number in [0, 1]"))
          (row-num (car rank))
          (col-num (cdr rank)))
     (rand-matrix row-num col-num min max)))
+
+(defmethod make-random-matrix-from-template ((template-matrix number) &optional min max)
+  "return a random number"
+  (rand-matrix 1 1 min max))
