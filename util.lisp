@@ -222,3 +222,24 @@ note that some part will get nil if iss ratio is too small"
 
 (defun standard-variance (lst)
   (expt (variance lst) 0.5))
+
+(defun neurons-from-weights (weights)
+  "for a R-S¹-S²-...-Sᴹ network, return (list R S¹ S² ... Sᴹ) when the network's weights is given"
+  (cons (car (matrix-size (car weights)))
+        (loop for w in weights
+              collect (cdr (matrix-size w)))))
+
+(defun restore-matrices-rank% (lst &optional (accu nil))
+  "'(2 3 1 3) -> ((3 2) (1 3) (3 1))"
+  (if (null (third lst))
+      (cons (list (second lst) (first lst)) accu)
+      (restore-matrices-rank% (cdr lst ) (cons (list (second lst) (first lst)) accu))))
+
+(defun restore-matrices-rank (lst)
+  "'(2 3 1 3) -> ((3 2) (1 3) (3 1))"
+  (reverse (restore-matrices-rank% lst)))
+
+(defun neurons-to-random-weights (neurons)
+  "make a list of weights the neurons are provided for each layer, this function is used in initializing a network randomly"
+  (loop for rank in (restore-matrices-rank neurons)
+        collect (rand-matrix (first rank) (second rank))))
