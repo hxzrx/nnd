@@ -64,3 +64,103 @@ Use cross-validation to decide when to stop."
 
 
 ;;;; Bayesian regularization method for improving generalization
+;;;; performance index: F(x) = βΣ(t-a)ᵀ(t-a) + αΣx² = βEᴅ + αEᴡ
+(defun weights-square-sum (parameter-list)
+  "the term Eᴡ = Σx², is the sum squared weights(all weights and biases)"
+  (loop for x in parameter-list
+        sum (* x x)))
+
+(defun beta-bayes-re (variance)
+  "β = 1/(2σ²), where σ² is the variance of each element of error ε, t = g(p) + ε"
+  (/ (* 2 variance)))
+
+(defun alpha-bayes-re (variance)
+  "α = 1/(2σ²), where σ² is the variance of each of the weights"
+  (/ (* 2 variance)))
+
+(defun ZD-beta (beta N)
+  "Zᴅ(β) = (π/β)^(N/2), where β is returned by beta-bayes-re, and N = Q * Sᴹ, Q is the sample num, Sᴹ is the dimension of the net output"
+  (expt (/ pi beta) (/ N 2)))
+
+(defun ZW-alpha (alpha n)
+  "Zᴡ(α) = (π/α)^(n/2), where α is returned by alpha-bayes-re, and `n is the number of weights and biases in the network"
+  (expt (/ pi alpha) (/ n 2)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defun lmbp-one-step (lmbp samples &optional (theta 5) (mu 0.01))
+  "execute one step of lmbp algorithm to locate the minimum point, return the lmbp object itself.
+this function was reduced from levenberg-marquardt-backpropagation, and only execute one step in the outer do* loop.
+this function return the reverse of Hessian matrix, H⁻¹"
+  (let* ((θ theta)
+         (μ mu)
+         (x (transpose (parameters-to-list lmbp)))
+         (jacobian (calc-jacobian lmbp samples))
+         (JᵀJ (matrix-product (transpose jacobian) jacobian))
+         ;;(gradient (reduce #'matrix-product (list 2 (transpose jacobian) x)))
+         )
+    (do* ((hessian-approx-inv (hessian-approximation JᵀJ μ)
+                              (hessian-approximation JᵀJ μ))
+          (Δx (reduce #'matrix-product (list -1 hessian-approx-inv (transpose jacobian) x))
+              (reduce #'matrix-product (list -1 hessian-approx-inv (transpose jacobian) x)))
+          (new-x (matrix-add x Δx) (matrix-add x Δx))
+          (old-weights (weights lmbp) (weights lmbp))
+          (old-biases (biases lmbp) (biases lmbp))
+          (dummy (list-to-parameters! lmbp new-x) (list-to-parameters! lmbp new-x))
+          (old-squared-error-sum (squared-error-sum lmbp) (squared-error-sum lmbp))
+          (new-squared-error-sum (update-squared-error-sum! lmbp samples)
+                                 (update-squared-error-sum! lmbp samples))
+          (new-gradient (reduce #'matrix-product (list 2 (transpose jacobian) x))
+                        (reduce #'matrix-product (list 2 (transpose jacobian) x))))
+         ((< new-squared-error-sum old-squared-error-sum)
+          (setf μ (* μ θ))
+          (setf x new-x)
+          hessian-approx-inv)
+      (setf μ (* μ θ))
+      (setf (weights lmbp) old-weights)
+      (setf (biases lmbp) old-biases))
+    ))
+
+(defun calc-Eᴅ (network train-set)
+  ""
+  (loop for (input target) in train-set
+        sum (inner-product-self
+             (matrix-sub (propagation-forward-without-states network (transpose (list input)))
+                         (transpose (list target))))))
+
+(defun calc-Eᴡ (network)
+  ""
+  (inner-product-self (parameters-to-list network)))
+
+(defun bayesian-regularization (network train-set &optional (tolerance 0.01))
+  "algorithm in page 250, Chinese ed. or page 483 in English pdf ed.
+currently the network should be lmbp type"
+  (let* ((Ed-init (calc-Eᴅ network train-set))
+         (Ew-init (calc-Eᴡ network))
+         (parameter-num (parameter-num network)) ; n in the raw algorithm, the total number of parameters in the network
+         (all-output-dimensions (* (length train-set) ; N in the raw algorithm, N=Q*Sᴹ
+                                  (if (listp (second train-set))
+                                      (length (second train-set))
+                                      1))) ; should check the data format later
+         (gamma parameter-num) ;gamma initialized to n
+         (alpha (/ gamma (* 2 Ew-init)))
+         (beta (/ (- all-output-dimensions gamma) (* 2 Ed-init)))
+         (Fx (+ (* beta Ed-init) (* alpha Ew-init))))
+    (format t "~&Init, F(x)=βEᴅ+αEᴡ=~f~%" Fx)
+    (do* ((i 1 (1+ i))
+          (hessian-inverse (lmbp-one-step network train-set) ;theta and mu use default value in lmbp-one-step
+                           (lmbp-one-step network train-set))
+          (square-error-sum (calc-Eᴅ network train-set) (calc-Eᴅ network train-set)) ;Eᴅ term
+          (weight-pernalty (calc-Eᴡ network) (calc-Eᴡ network)) ;Eᴡ term
+          (performance-prev Fx performace-Fx)
+          (performace-Fx (+ (* beta square-error-sum) (* alpha weight-pernalty))
+                         (+ (* beta square-error-sum) (* alpha weight-pernalty))))
+         ((< (abs (- performace-Fx performance-prev)) tolerance)
+          (format t "~&Converged!~% F(x)=βEᴅ+αEᴡ=~f~%" performace-Fx)
+          network)
+      (when (mod i 10) (format t "~&i, F(x)=βEᴅ+αEᴡ=~f~%" performace-Fx))
+      (setf gamma (- parameter-num (* 2 alpha (matrix-trace hessian-inverse))))
+      (setf alpha (/ gamma (* 2 weight-pernalty)))
+      (setf beta (/ (- all-output-dimensions gamma) (* 2 square-error-sum))))))
