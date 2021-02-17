@@ -330,7 +330,8 @@ the side effect is to write into the jacobian slot of `lmbp"
 |#
 
 (defun hessian-approximation (hessian mu)
-  "Hessian matrix may not be invertible, so modificate it to the approximate Hessian matrix: G = H + μI, where μ>0"
+  "Hessian matrix may not be invertible, so modificate it to the approximate Hessian matrix: G = H + μI, where μ>0.
+`mu will be summed up on each recursion until the matrix G=H+k*μI is invertable"
   (alexandria:if-let ((inv (matrix-inverse hessian)))
     inv
     (hessian-approximation (matrix-add hessian (matrix-product mu (eye (length hessian)))) mu)))
