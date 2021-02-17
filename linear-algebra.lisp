@@ -254,6 +254,10 @@
   "Return a cons (rows . cols). If m is not rectangle, return nil."
   (lists-length-equal m))
 
+(defmethod matrix-size ((m number))
+  "Return a cons (rows . cols). If m is not rectangle, return nil."
+  1)
+
 ;;;; ith row of a matrix
 (defgeneric nth-row (matrix nth)
   (:documentation "return the nth row of matrix, return a list, '((1 2 3))"))
