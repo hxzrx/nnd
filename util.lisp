@@ -204,3 +204,29 @@ note that some part will get nil if iss ratio is too small"
 
 (defun descending-list-p (lst)
   (successive-property-list-p lst :test #'>=))
+
+;;;; some statistic functions
+(defun average (lst &optional (sum 0) (num 0))
+  (if (null lst)
+      (/ sum num)
+      (average (cdr lst) (+ sum (car lst)) (+ num 1))))
+
+(defun mean (lst)
+  (average lst))
+
+(defun median (lst)
+  (let ((sorted (sort lst #'>))
+        (n (length lst)))
+    (if (= (mod n 2) 0)
+        (/ (+ (nth (- (/ n 2) 1) sorted) (nth (/ n 2) lst)) 2)
+        (nth (/ (- n 1) 2) lst))))
+
+(defun variance (lst &optional (square-sum 0) (num 0))
+  (if (null lst)
+      (/ square-sum num)
+      (variance (cdr lst)
+                (+ square-sum (* (car lst) (car lst)))
+                (+ num 1))))
+
+(defun standard-variance (lst)
+  (expt (variance lst) 0.5))
