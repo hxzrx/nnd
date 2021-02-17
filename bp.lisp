@@ -4,7 +4,12 @@
 
 ;;;; backpropagation network class definition
 (defclass bp-network ()
-  ((inputs :initarg :inputs
+  ((neurons :initarg :neurons
+            :accessor neurons
+            :type list
+            :initform nil
+            :documentation "the list of neurons for the layers, R-S¹-S²-...-Sᴹ, where R is the input dimension, and Sⁱ is the neurons of each layer, this slot's value is (list R S¹ S² ... Sᴹ)")
+   (inputs :initarg :inputs
            :accessor inputs
            :type list
            :initform nil
@@ -55,12 +60,38 @@
                                   used in batch learning, used in batch bp"))
    (:documentation "a neural network learner, for multi-layers"))
 
-(defun make-bp-network (&key weight-list bias-list transfer-list derivative-list)
+(defun make-bp-network (&key neuron-list weight-list bias-list transfer-list derivative-list)
   "return a bp-network instance with the initial parameters"
   (make-instance 'bp-network
-                 :weights weight-list :biases bias-list :transfers transfer-list
+                 :init-neurons neuron-list
+                 :init-weights weight-list
+                 :init-biases bias-list
+                 :transfers transfer-list
                  :derivatives (loop for d-type in derivative-list
                                     collect (derivative d-type))))
+
+(defmethod initialize-instance :after ((bp bp-network) &key init-weights init-biases init-neurons &allow-other-keys)
+  "init-weights and init-neurons should not be non-nil at the same time, and should not be nil at the same time"
+  (with-accessors ((neurons neurons)
+                   (weights weights)
+                   (biases biases)) bp
+    (setf neurons init-neurons)
+    (setf weights init-weights)
+    (setf biases  init-biases)
+    (when (or (and init-neurons init-weights) (and (null init-neurons) (null init-weights)))
+      (error "neurons and weights should not be initialized to nil at the same time"))
+    (when (and neurons weights)
+      (error "neurons and weights should not be initialized to non-nil at the same time"))
+    (when (not (or (and init-biases init-weights) (and (null init-biases) (null init-weights))))
+      (error "weights and biases should be initialized to both nil or both non-nil"))
+    (cond (init-neurons ;randomly initialize weights and biases
+           (setf weights (neurons-to-random-weights init-neurons))
+           (setf biases  (neurons-to-random-biases  init-neurons)))
+          (init-weights ;update neurons after the weights are initialized
+           (setf neurons (neurons-from-weights init-weights)))
+          (t (format t "~&Unkown condition when initialize bp-network.~%")
+             (error "Unkown condition when initialize bp-network.")))))
+
 
 ;;;; get the result of the network given the input and parameters
 (defgeneric propagation-forward-without-states (bp input)
