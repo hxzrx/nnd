@@ -83,6 +83,10 @@
   "check if vec is a column vector"
   (every #'(lambda (row) (and (listp row) (= (length row) 1) (numberp (car row)))) vec))
 
+(defmethod column-vector-p ((vec number))
+  "return t if vec is a number"
+  t)
+
 (defgeneric vector-add (a b)
   (:documentation "additon two vectors, the result is the same as the type of a"))
 
