@@ -888,3 +888,19 @@ if min and max were nil, the elements will be real number in [0, 1]"))
 (defmethod make-random-matrix-from-template ((template-matrix number) &optional min max)
   "return a random number"
   (rand-matrix 1 1 min max))
+
+(defgeneric matrix-compare (m1 m2 &key test)
+  (:documentation "compare two matrix element by element by `test function"))
+
+(defmethod matrix-compare ((m1 real) (m2 real) &key test)
+  "compare two real number by `test function"
+  (funcall test m1 m2))
+
+(defun list-compare% (lst1 lst2 &key test)
+  "compare two numerical list by `test function"
+  (every test lst1 lst2))
+
+(defmethod matrix-compare ((m1 list) (m2 list) &key test)
+  "compare two matrix element by element by `test function"
+  (assert (equal (matrix-size m1) (matrix-size m2)))
+  (every #'(lambda (l1 l2) (list-compare% l1 l2 :test test)) m1 m2))
