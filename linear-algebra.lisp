@@ -904,3 +904,24 @@ if min and max were nil, the elements will be real number in [0, 1]"))
   "compare two matrix element by element by `test function"
   (assert (equal (matrix-size m1) (matrix-size m2)))
   (every #'(lambda (l1 l2) (list-compare% l1 l2 :test test)) m1 m2))
+
+(defgeneric matrix-slice (matrix num)
+  (:documentation "slice `matrix uniformly into `num parts, the results will include zeros matrix and `matrix itselt"))
+
+(defmethod matrix-slice ((matrix list) (num integer))
+  "slice `matrix uniformly into `num parts, the results will include zeros matrix and `matrix itselt"
+  (assert (> num 0))
+  (if (> num 1)
+      (let ((step (matrix-divide-scalar matrix (1- num))))
+        (loop for i from 0 to (1- num)
+              collect (matrix-multiple-scalar step i)))
+      matrix))
+
+(defmethod matrix-slice ((matrix number) (num integer))
+  "slice a number uniformly into `num parts, the results will include 0 and the number itselt"
+  (assert (> num 0))
+  (if (> num 1)
+      (let ((step (/ matrix (1- num))))
+        (loop for i from 0 to (1- num)
+              collect (* step i)))
+      matrix))
