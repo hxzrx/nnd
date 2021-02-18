@@ -265,3 +265,18 @@ eg. (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10)"
   (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
         collect (list (column-vector-to-list input)
                       (column-vector-to-list (funcall gen-fun input)))))
+
+(defun boxmuller-sampling (&optional (mu 0) (sigma 1))
+  "get a normal distribution random number by Box-Muller method
+https://www.zhihu.com/question/29971598
+def boxmullersampling(mu=0, sigma=1, size=1):
+    u = np.random.uniform(size=size)
+    v = np.random.uniform(size=size)
+    z = np.sqrt(-2*np.log(u))*np.cos(2*np.pi*v)
+    return mu+z*sigma
+"
+  (let* ((u (random 1.0))
+         (v (random 1.0))
+         (z (* (sqrt (* -2 (log u)))
+               (cos (* 2 pi v)))))
+    (+ mu (* z sigma))))
