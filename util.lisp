@@ -239,12 +239,12 @@ note that some part will get nil if iss ratio is too small"
   "'(2 3 1 3) -> ((3 2) (1 3) (3 1))"
   (reverse (restore-matrices-rank% lst)))
 
-(defun neurons-to-random-weights (neurons)
+(defun neurons-to-random-weights (neurons &optional (min -0.5) (max 0.5)) ;-0.5 to 0.5 is suggested in exercise 11.25, page 209, Chinese edition
   "make a list of weights the neurons are provided for each layer, this function is used in initializing a network randomly"
   (loop for (row col) in (restore-matrices-rank neurons)
-        collect (rand-matrix row col)))
+        collect (rand-matrix row col min max)))
 
-(defun neurons-to-random-biases (neurons)
+(defun neurons-to-random-biases (neurons &optional (min -0.5) (max 0.5))
   "make a list of biases the neurons are provided for each layer, this function is used in initializing a network randomly"
   (loop for (row nil) in (restore-matrices-rank neurons)
-        collect (rand-matrix row 1)))
+        collect (rand-matrix row 1 min max)))
