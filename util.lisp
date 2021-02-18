@@ -257,15 +257,7 @@ note that some part will get nil if iss ratio is too small"
         vec) ;the number case
     (format t "Warning: ~d is not a vector!~%" vec)))
 
-(defun data-generator-accurate (gen-fun min-vec max-vec gen-num)
-  "generate a list of data, given a function and it's input intervals as well as how many data we need, no noise!
-min-vec and max-vec should be column vector,
-the result will convert to a well formed such as (list '((p11 p12) (a11 a12)) '((p21 p22) (a21 a22)) ...)
-eg. (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10)"
-  (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
-        collect (list (column-vector-to-list input)
-                      (column-vector-to-list (funcall gen-fun input)))))
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun boxmuller-sampling (&optional (mu 0) (sigma 1))
   "get a normal distribution random number by Box-Muller method
 https://www.zhihu.com/question/29971598
@@ -280,3 +272,32 @@ def boxmullersampling(mu=0, sigma=1, size=1):
          (z (* (sqrt (* -2 (log u)))
                (cos (* 2 pi v)))))
     (+ mu (* z sigma))))
+
+(defun gauss-random (&optional (mu 0) (sigma 1))
+  "get a normal distribution random number"
+  (boxmuller-sampling mu sigma))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun data-generator-accurate (gen-fun min-vec max-vec gen-num)
+  "generate a list of data, given a function and it's input intervals as well as how many data we need, no noise!
+min-vec and max-vec should be column vector,
+the result will convert to a well formed such as (list '((p11 p12) (a11 a12)) '((p21 p22) (a21 a22)) ...)
+eg. (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10)"
+  (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
+        collect (list (column-vector-to-list input)
+                      (column-vector-to-list (funcall gen-fun input)))))
+
+(defun data-generator-gauss-noise (gen-fun min-vec max-vec gen-num mu sigma)
+  "generate a list of data, given a function and it's input intervals as well as how many data we need, with gauss noise, i.i.d.!
+min-vec and max-vec should be column vector,
+the result will convert to a well formed such as (list '((p11 p12) (a11 a12)) '((p21 p22) (a21 a22)) ...)
+eg. (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10 0 1)"
+  (flet ((add-noise (lst mu sigma) ;lst is either a list or a number
+           (if (listp lst)
+               (loop for i in lst
+                     collect (+ i (gauss-random mu sigma)))
+               (+ lst (gauss-random mu sigma)))))
+    (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
+          collect (list (column-vector-to-list input)
+                        (add-noise (column-vector-to-list (funcall gen-fun input))
+                                   mu sigma)))))
