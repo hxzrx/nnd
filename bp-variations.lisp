@@ -44,7 +44,6 @@
 
 (defmethod initialize-instance :after ((lmbp lmbp-network) &key &allow-other-keys)
   ""
-  (format t "~%In initialize lmbp.~%")
   (flet ((layer-param-sum (a) (* (cdr a) (1+ (car a))))) ; add 1 to denote the bias num
     (with-accessors (;(neurons neuron-nums)
                      (parameters parameter-num)) lmbp
@@ -285,23 +284,6 @@ the side effect is to write into the jacobian slot of `lmbp"
     (calc-jacobian% lmbp sample))
   (jacobian lmbp))
 
-#|
-;; Solved problem, P12.5, page 234, Chinese Ed.
-(setf lmbp2 (make-lmbp-network :weight-list '(1 2)
-                               :bias-list '(0 1)
-                               :transfer-list (list #'square #'purelin)
-                               :derivative-list (list :square :purelin)))
-(calc-jacobian lmbp2 '((1 1) (2 2)))
-|#
-
-#|
-;; Exercise E12.14, page 240, Chinese Ed.
-(setf lmbp3 (make-lmbp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
-                               :bias-list '(((-0.48) (-0.13)) 0.48)
-                               :transfer-list (list #'logsig #'purelin)
-                               :derivative-list (list :logsig :purelin)))
-(calc-jacobian lmbp3 '((1) (0)))
-|#
 
 (defun hessian-approximation (hessian mu)
   "Hessian matrix may not be invertible, so modificate it to the approximate Hessian matrix: G = H + μI, where μ>0.
@@ -351,18 +333,6 @@ the side effect is to write into the jacobian slot of `lmbp"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; examples and exercises
 
-#+:ignore(defun exercise-12.14 ()
-  "page 240, Chinese ed."
-  (let ((bp (make-lmbp-network :neuron-list (list 1 10 1)
-                             :transfer-list (list #'logsig #'purelin)
-                             :derivative-list (list :logsig :purelin)))
-        (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 11)))
-    (dotimes (i 10000) (backpropagation-batch bp data 0.1)) ;have unknown bugs
-    ;;(dotimes (i 1000) (backpropagation bp data 0.2)) ;result correct
-    (loop for (input target) in data
-          do (format t "~&~f ~,3f ~,3f~%" input (propagation-forward-without-states bp input) target))
-    ))
-
 (defun example-12.4 ()
   "page 233, P12.4"
   (let ((pfun (quadratic-function '((2 1) (1 2)))))
@@ -384,14 +354,29 @@ the side effect is to write into the jacobian slot of `lmbp"
   (let ((lmbp (make-lmbp-network :weight-list '(1 2)
                                  :bias-list '(0 1)
                                  :transfer-list (list #'square #'purelin)
-                                 :derivative-list (list :square :purelin))))
-    (calc-jacobian% lmbp '(1 1)) ;should return '((-4 -4 -1 -1))
-    (calc-jacobian% lmbp '(2 2)) ;should return '((-4 -4 -1 -1) (-16 -8 -4 -1))
+                                 :derivative-list (list :square :purelin)))
+        (data '((1 1) (2 2))))
+    (format t "~&Jacobian matrix for the firse input ~d: ~d~%" (first data) (calc-jacobian% lmbp (first data)))
+    (format t "~&Jacobian matrix after one more input ~d: ~d~%" (second data) (calc-jacobian% lmbp (second data)))
     ))
 
+(defun example-12.5+ ()
+  "page 234, Chinese ed."
+  (let* ((lmbp (make-lmbp-network :weight-list '(1 2)
+                                  :bias-list '(0 1)
+                                  :transfer-list (list #'square #'purelin)
+                                  :derivative-list (list :square :purelin)))
+         (data '((1 1) (2 2)))
+         (res (calc-jacobian lmbp data)))
+    (format t "~&Train set: ~d~&Result: ~d~%" data res)
+    ))
 
-#+:ignore
-(setf lmbp1 (make-lmbp-network :weight-list '(1 2)
-                               :bias-list '(0 1)
-                               :transfer-list (list #'square #'purelin)
-                               :derivative-list (list :square :purelin)))
+(defun exercise-12.14 ()
+  "page 240, Chinese ed."
+  (let* ((lmbp (make-lmbp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
+                                  :bias-list '(((-0.48) (-0.13)) 0.48)
+                                  :transfer-list (list #'logsig #'purelin)
+                                  :derivative-list (list :logsig :purelin)))
+         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) 1 0 2))
+         (jacobian (calc-jacobian lmbp data)))
+    (format t "~&Jacobian matrix:~&~d~%" jacobian)))
