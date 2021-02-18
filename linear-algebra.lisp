@@ -167,16 +167,23 @@
         collect
         (basic-list-scalar* row n)))
 
+(defmethod matrix-multiple-scalar ((matrix number) (n number))
+  "number * number"
+  (* matrix n))
 
 ;;;; matrix divide a scalar
 (defgeneric matrix-divide-scalar (matrix n)
   (:documentation " matrix / number"))
 
 (defmethod matrix-divide-scalar ((matrix list) (n number))
-  "matrix * number"
+  "matrix / number"
   (loop for row in matrix
         collect
         (basic-list-scalar/ row n)))
+
+(defmethod matrix-divide-scalar ((matrix number) (n number))
+  "number / number"
+  (/ matrix n))
 
 
 ;;;; matrix multiply matrix
@@ -905,10 +912,10 @@ if min and max were nil, the elements will be real number in [0, 1]"))
   (assert (equal (matrix-size m1) (matrix-size m2)))
   (every #'(lambda (l1 l2) (list-compare% l1 l2 :test test)) m1 m2))
 
-(defgeneric matrix-slice (matrix num)
+(defgeneric matrix-slice% (matrix num)
   (:documentation "slice `matrix uniformly into `num parts, the results will include zeros matrix and `matrix itselt"))
 
-(defmethod matrix-slice ((matrix list) (num integer))
+(defmethod matrix-slice% ((matrix list) (num integer))
   "slice `matrix uniformly into `num parts, the results will include zeros matrix and `matrix itselt"
   (assert (> num 0))
   (if (> num 1)
@@ -917,7 +924,7 @@ if min and max were nil, the elements will be real number in [0, 1]"))
               collect (matrix-multiple-scalar step i)))
       matrix))
 
-(defmethod matrix-slice ((matrix number) (num integer))
+(defmethod matrix-slice% ((matrix number) (num integer))
   "slice a number uniformly into `num parts, the results will include 0 and the number itselt"
   (assert (> num 0))
   (if (> num 1)
@@ -925,3 +932,22 @@ if min and max were nil, the elements will be real number in [0, 1]"))
         (loop for i from 0 to (1- num)
               collect (* step i)))
       matrix))
+
+(defgeneric matrix-slice (matrix1 matrix2 num)
+  (:documentation "slice matrices uniformly from matrix1 to matrix2 into `num parts, the results will include matrix1 and matrix2"))
+
+(defmethod matrix-slice ((matrix1 list) (matrix2 list) (num integer))
+  "slice matrices uniformly from matrix1 to matrix2 into `num parts, the results will include matrix1 and matrix2"
+  (assert (> num 0))
+  (if (> num 1)
+      (loop for slice in (matrix-slice% (matrix-sub matrix2 matrix1) num)
+            collect (matrix-add matrix1 slice))
+      (matrix-divide-scalar (matrix-add matrix1 matrix2) 2)))
+
+(defmethod matrix-slice ((n1 number) (n2 number) (num integer))
+  "slice numbers uniformly from n1 to n22 into `num parts, the results will include n1 and n2"
+  (assert (> num 0))
+  (if (> num 1)
+      (loop for slice in (matrix-slice% (matrix-sub n2 n1) num)
+            collect (matrix-add n1 slice))
+      (matrix-divide-scalar (matrix-add n1 n2) 2)))
