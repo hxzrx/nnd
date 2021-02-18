@@ -2,6 +2,56 @@
 
 ;;;; Chapter 12, Variations on Backpropagation
 
+
+(defclass lmbp-network (bp-network)
+  ((jacobian :initarg :jacobian
+             :accessor jacobian
+             :type list
+             :initform nil
+             :documentation "jacobian matrix")
+   (marquardt-sensitive :initarg :marquardt-sensitive
+                        :accessor marquardt-sensitive
+                        :type list
+                        :initform nil
+                        :documentation "the list of marquardt-sensitives of all the parameters")
+   #+:ignore(neuron-nums :initarg :neuron-nums
+                :accessor neuron-nums
+                :type list
+                :initform nil
+                :documentation "the list of the neuron num of each layer")
+   (parameter-num :initarg :parameter-num
+                  :accessor parameter-num
+                  :type integer
+                  :initform 0
+                  :documentation "sum of the number of the elements of weights and biased of all layers")
+   (squared-error-sum :initarg :squared-error-sum
+                      :accessor squared-error-sum
+                      :type real
+                      :initform 0
+                      :documentation "performance index, sum of squared errors over all inputs")
+   )
+  (:documentation "Levenberg-Marquardt backpropagation algorithm"))
+
+(defun make-lmbp-network (&key neuron-list weight-list bias-list transfer-list derivative-list)
+  "return a bp-network instance with the initial parameters"
+  (make-instance 'lmbp-network
+                 :init-neurons neuron-list
+                 :init-weights weight-list
+                 :init-biases bias-list
+                 :transfers transfer-list
+                 :derivatives (loop for d-type in derivative-list
+                                    collect (derivative d-type))))
+
+(defmethod initialize-instance :after ((lmbp lmbp-network) &key &allow-other-keys)
+  ""
+  (format t "~%In initialize lmbp.~%")
+  (flet ((layer-param-sum (a) (* (cdr a) (1+ (car a))))) ; add 1 to denote the bias num
+    (with-accessors (;(neurons neuron-nums)
+                     (parameters parameter-num)) lmbp
+      ;(setf neurons (loop for w in (weights lmbp) collect (if (numberp w) 1 (length w))))
+      (setf parameters (loop for w in (weights lmbp) sum (if (numberp w) 2 (layer-param-sum (matrix-size w))))))))
+
+
 (defun interval-location (f init-point direction epsilon)
   "evaluation F(x0 + ε*p0), F(x0 + 2ε*p0), F(x0 + 4ε*p0), ..., and stops when F has a successive incresement"
   (flet ((eval-fun (f init-point direction epsilon) ;evaluation function for a quadratic function, F(x0 + ε*p0)
@@ -13,11 +63,6 @@
           (Fx (eval-fun f init-point direction ep) (eval-fun f init-point direction ep)))
          ((> Fx F-prev) (cons (/ ep 4) ep)) ;need the interval of the last three ε's
       #+:ignore(format t "~&i: ~d, ε=~f, F_k-1=~f, F_k=~f~%" i ep F-prev Fx))))
-#|
-;;page 233, P12.4
-(setf pfun1 (quadratic-function '((2 1) (1 2))))
-(interval-location pfun1 '((0.8) (-0.25)) '((-1.35) (-0.3)) 0.075)
-|#
 
 (defun golden-section-search (f init-point direction a0 b0 &optional (tao 0.618) (tolerance 0.01))
   "used in interval reduction"
@@ -52,11 +97,6 @@
             a))
       (format t "~&~d: Fc=~f, Fd= ~f, a=~f, b=~f, c=~f, d=~f~%" iter-num Fc Fd a b c d)
       )))
-#|
-;;page 233, P12.4
-(setf pfun2 (quadratic-function '((2 1)(1 2))))
-(golden-section-search pfun2 '((0.8) (-0.25)) '((-1.35) (-0.3)) 0.15 0.6)
-|#
 
 (defun variable-learning-rate (f gradient init-point alpha gamma eta rho zeta &optional (tolerance 0.01))
   "f is the performance index function,
@@ -96,57 +136,6 @@ returns (cons new-point new-alpha)"
       (format t "~&i: ~d, α=~f, γ=~f, x=~d, F(x)=~f~%" i α γ x Fx)
       )))
 
-#|
-;;page 231, P12.3
-(setf f (quadratic-function '((2 0) (0 50))))
-(setf g (list #'(lambda (x1 x2) (* 2 x1)) #'(lambda (x1 x2) (* 50 x2))))
-(variable-learning-rate f g '((0.5) (0.5)) 0.05 0.2 1.5 0.5 0.05)
-|#
-
-
-(defclass lmbp-network (bp-network)
-  ((jacobian :initarg :jacobian
-             :accessor jacobian
-             :type list
-             :initform nil
-             :documentation "jacobian matrix")
-   (marquardt-sensitive :initarg :marquardt-sensitive
-                        :accessor marquardt-sensitive
-                        :type list
-                        :initform nil
-                        :documentation "the list of marquardt-sensitives of all the parameters")
-   #+:ignore(neuron-nums :initarg :neuron-nums
-                :accessor neuron-nums
-                :type list
-                :initform nil
-                :documentation "the list of the neuron num of each layer")
-   (parameter-num :initarg :parameter-num
-                  :accessor parameter-num
-                  :type integer
-                  :initform 0
-                  :documentation "sum of the number of the elements of weights and biased of all layers")
-   (squared-error-sum :initarg :squared-error-sum
-                      :accessor squared-error-sum
-                      :type real
-                      :initform 0
-                      :documentation "performance index, sum of squared errors over all inputs")
-   )
-  (:documentation "Levenberg-Marquardt backpropagation algorithm"))
-
-(defun make-lmbp-network (&key weight-list bias-list transfer-list derivative-list)
-  "return a bp-network instance with the initial parameters"
-  (make-instance 'lmbp-network
-                 :weights weight-list :biases bias-list :transfers transfer-list
-                 :derivatives (loop for d-type in derivative-list
-                                    collect (derivative d-type))))
-
-(defmethod initialize-instance :after ((lmbp lmbp-network) &key &allow-other-keys)
-  ""
-  (flet ((layer-param-sum (a) (* (cdr a) (1+ (car a))))) ; add 1 to denote the bias num
-    (with-accessors (;(neurons neuron-nums)
-                     (parameters parameter-num)) lmbp
-      ;(setf neurons (loop for w in (weights lmbp) collect (if (numberp w) 1 (length w))))
-      (setf parameters (loop for w in (weights lmbp) sum (if (numberp w) 2 (layer-param-sum (matrix-size w))))))))
 
 (defun reset-squared-error-sum! (lmbp)
   "reset squared-error-sum of lmbp to zero"
@@ -165,11 +154,6 @@ returns (cons new-point new-alpha)"
   (squared-error-sum lmbp))
 
 
-#+:ignore
-(setf lmbp1 (make-lmbp-network :weight-list '(1 2)
-                               :bias-list '(0 1)
-                               :transfer-list (list #'square #'purelin)
-                               :derivative-list (list :square :purelin)))
 
 (defun parameter-type-list (weights biases)
   "return a list of flatten type such as (:w :w :w :w :b :b) to denote an element of a row of Jacobian matrix corresponding to a weight or a bias"
@@ -293,16 +277,6 @@ The steps above get a row corresponding to one final output's component of parti
       ;;(format t "~&jacobian-block: ~d, jacobian-matrix: ~d~%" jacobian-block jacobian-matrix)
       )))
 
-#|
-(setf lmbp2 (make-lmbp-network :weight-list '(1 2)
-                               :bias-list '(0 1)
-                               :transfer-list (list #'square #'purelin)
-                               :derivative-list (list :square :purelin)))
-(calc-jacobian% lmbp2 '(1 1))
-;; should return '((-4 -4 -1 -1))
-(calc-jacobian% lmbp2 '(2 2))
-;; should return '((-4 -4 -1 -1) (-16 -8 -4 -1))
-|#
 
 (defmethod calc-jacobian ((lmbp lmbp-network) (samples list))
   "append jacobian matrix' blocks with respect to each sample, and get the final jacobian matrix,
@@ -372,3 +346,52 @@ the side effect is to write into the jacobian slot of `lmbp"
         (setf (weights lmbp) old-weights)
         (setf (biases lmbp) old-biases))
       )))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; examples and exercises
+
+#+:ignore(defun exercise-12.14 ()
+  "page 240, Chinese ed."
+  (let ((bp (make-lmbp-network :neuron-list (list 1 10 1)
+                             :transfer-list (list #'logsig #'purelin)
+                             :derivative-list (list :logsig :purelin)))
+        (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 11)))
+    (dotimes (i 10000) (backpropagation-batch bp data 0.1)) ;have unknown bugs
+    ;;(dotimes (i 1000) (backpropagation bp data 0.2)) ;result correct
+    (loop for (input target) in data
+          do (format t "~&~f ~,3f ~,3f~%" input (propagation-forward-without-states bp input) target))
+    ))
+
+(defun example-12.4 ()
+  "page 233, P12.4"
+  (let ((pfun (quadratic-function '((2 1) (1 2)))))
+    (interval-location pfun '((0.8) (-0.25)) '((-1.35) (-0.3)) 0.075)))
+
+(defun example-12.4+ ()
+  "page 232, Chinese ed."
+  (let ((pfun (quadratic-function '((2 1) (1 2)))))
+    (golden-section-search pfun '((0.8) (-0.25)) '((-1.35) (-0.3)) 0.15 0.6)))
+
+(defun example-12.3 ()
+  "page 231, P12.3"
+  (let ((f (quadratic-function '((2 0) (0 50))))
+        (g (list #'(lambda (x1 x2) (* 2 x1)) #'(lambda (x1 x2) (* 50 x2)))))
+    (variable-learning-rate f g '((0.5) (0.5)) 0.05 0.2 1.5 0.5 0.05)))
+
+(defun example-12.5 ()
+  "page 234, Chinese ed."
+  (let ((lmbp (make-lmbp-network :weight-list '(1 2)
+                                 :bias-list '(0 1)
+                                 :transfer-list (list #'square #'purelin)
+                                 :derivative-list (list :square :purelin))))
+    (calc-jacobian% lmbp '(1 1)) ;should return '((-4 -4 -1 -1))
+    (calc-jacobian% lmbp '(2 2)) ;should return '((-4 -4 -1 -1) (-16 -8 -4 -1))
+    ))
+
+
+#+:ignore
+(setf lmbp1 (make-lmbp-network :weight-list '(1 2)
+                               :bias-list '(0 1)
+                               :transfer-list (list #'square #'purelin)
+                               :derivative-list (list :square :purelin)))
