@@ -297,64 +297,63 @@ Then, the individual gradients would be averaged to get the total gradient."))
         (push (if s (matrix-add s sensitivity) sensitivity)
               new-sensitivities)))))
 
-#|
-(setf bp1 (make-bp-network :weight-list '(((1 -1) (1 0)) ((1 1)))
-                          :bias-list '(((1) (2)) 1)
-                          :transfer-list (list #'cube #'purelin)))
-(propagation-forward-without-states bp1 '((-1) (1)))
-(propagation-forward bp1 '((-1) (1)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; examples and exercises
+(defun exercise-11.12 ()
+  "page 206, Chinese ed."
+  (let ((bp (make-bp-network :weight-list '(((1 -1) (1 0)) ((1 1)))
+                             :bias-list '(((1) (2)) 1)
+                             :transfer-list (list #'cube #'purelin)))
+        (p '((-1) (1))))
+    (propagation-forward-without-states bp p)
+    (propagation-forward bp p)
+    (backpropagation% bp p 0.5)
+    #+:ignore(backpropagation% bp '(-1 1) 0.5) ;will not work
+    ))
 
-(setf bp2 (make-bp-network :weight-list '(-1 -2)
-                           :bias-list '(1 1)
-                           :transfer-list (list #'tansig #'tansig)))
-(propagation-forward-without-states bp2 -1)
-(propagation-forward bp2 -1)
+(defun example-11.7 ()
+  "page 198, Chinese ed."
+  (let ((bp (make-bp-network :weight-list '(-1 -2)
+                             :bias-list '(1 1)
+                             :transfer-list (list #'tansig #'tansig))))
+    (propagation-forward-without-states bp -1)
+    (propagation-forward bp -1)))
 
-(setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
-                           :bias-list '(((-0.48) (-0.13)) 0.48)
-                           :transfer-list (list #'logsig #'purelin)))
-(propagation-forward-without-states bp3 1)
-(propagation-forward bp3 1)
-|#
+(defun example-11.2.3 ()
+  "page 186, Chinese ed."
+  (let ((bp (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
+                             :bias-list '(((-0.48) (-0.13)) 0.48)
+                             :transfer-list (list #'logsig #'purelin)))
+        (p 1))
+    (propagation-forward-without-states bp p)
+    (propagation-forward bp p)
+    (format t "~&New weights: ~d~%" (weights bp))
+    (format t "~&New biases: ~d~%" (biases bp))))
 
-;;;; p186, 11.2.3 example
-#|
-(setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
-                           :bias-list '(((-0.48) (-0.13)) 0.48)
-                           :transfer-list (list #'logsig #'purelin)
-                           :derivative-list (list :logsig :purelin)))
-(backpropagation% bp3 (list 1 (1+ (sin (/ pi 4)))) 0.1)
-(backpropagation  bp3 (list (list 1 (1+ (sin (* (/ pi 4) 1))))
-                            (list -2 (1+ (sin (* (/ pi 4) -2))))
-                            (list 2 (1+ (sin (* (/ pi 4) 2))))) 0.1)
+(defun example-11.2.3+ ()
+  "page 186, Chinese ed."
+  (let ((bp (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
+                             :bias-list '(((-0.48) (-0.13)) 0.48)
+                             :transfer-list (list #'logsig #'purelin)
+                             :derivative-list (list :logsig :purelin)))
+        (data (list (list 1 (1+ (sin (* (/ pi 4) 1))))
+                    (list -2 (1+ (sin (* (/ pi 4) -2))))
+                    (list 2 (1+ (sin (* (/ pi 4) 2)))))))
+    (backpropagation% bp (list 1 (1+ (sin (/ pi 4)))) 0.1)
+    (backpropagation  bp data 0.1)))
 
-;;;; p198, P11.7
-(setf bp4 (make-bp-network :weight-list '(-1 -2)
-                           :bias-list '(1 1)
-                           :transfer-list (list #'tansig #'tansig)
-                           :derivative-list (list :tansig :tansig)))
-(backpropagation% bp4 (list -1 1) 1)
-|#
+(defun example-11.7 ()
+  "page 198, Chinese ed."
+  (let ((bp (make-bp-network :weight-list '(-1 -2)
+                             :bias-list '(1 1)
+                             :transfer-list (list #'tansig #'tansig)
+                             :derivative-list (list :tansig :tansig)))
+        (data (list -1 1))
+        (alpha 1))
+    (backpropagation% bp data alpha)))
 
-#|
-(setf bp5 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
-                           :bias-list '(((-0.48) (-0.13)) 0.48)
-                           :transfer-list (list #'logsig #'purelin)
-                           :derivative-list (list :logsig :purelin)))
-(backpropagation-batch bp5 (list (list 1 (1+ (sin (* (/ pi 4) 1))))
-                                 (list -2 (1+ (sin (* (/ pi 4) -2))))
-                                 (list 2 (1+ (sin (* (/ pi 4) 2)))))
-                       0.1)
-|#
-
-#|
-(setf bp6 (make-bp-network :weight-list '(0.4) :bias-list '(0.15)
-                           :transfer-list (list #'logsig) :derivative-list (list :logsig)))
-(backpropagation-batch bp6 (list (list -3 0.5) (list 2 1)) 1)
-|#
-
-;; page 209, E11.25
 (defun exercise-11.25 ()
+  "page 209, E11.25"
   (let ((bp (make-bp-network :neuron-list (list 1 10 1)
                              :transfer-list (list #'logsig #'purelin)
                              :derivative-list (list :logsig :purelin)))
