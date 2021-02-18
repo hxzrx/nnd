@@ -248,3 +248,20 @@ note that some part will get nil if iss ratio is too small"
   "make a list of biases the neurons are provided for each layer, this function is used in initializing a network randomly"
   (loop for (row nil) in (restore-matrices-rank neurons)
         collect (rand-matrix row 1 min max)))
+
+(defun column-vector-to-list (vec)
+  "convert a column vector to a list, if vec is a number, return the number itself"
+  (if (column-vector-p vec)
+    (if (listp vec)
+        (first (transpose vec))
+        vec) ;the number case
+    (format t "Warning: ~d is not a vector!~%" vec)))
+
+(defun data-generator-accurate (gen-fun min-vec max-vec gen-num)
+  "generate a list of data, given a function and it's input intervals as well as how many data we need, no noise!
+min-vec and max-vec should be column vector,
+the result will convert to a well formed such as (list '((p11 p12) (a11 a12)) '((p21 p22) (a21 a22)) ...)
+eg. (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10)"
+  (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
+        collect (list (column-vector-to-list input)
+                      (column-vector-to-list (funcall gen-fun input)))))
