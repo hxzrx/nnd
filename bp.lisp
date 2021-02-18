@@ -363,3 +363,5 @@ Then, the individual gradients would be averaged to get the total gradient."))
     (loop for (input target) in data
           do (format t "~&~f ~,3f ~,3f~%" input (propagation-forward-without-states bp input) target))
     ))
+
+;; batch bp's example is in page 228
