@@ -244,6 +244,7 @@ Then, the individual gradients would be averaged to get the total gradient."))
 
 (defmethod backpropagation-batch ((bp bp-network) (samples list) (alpha real))
   "we keep sum of the gradients in the slot of gradients-sum of bp and increase the value for each sample"
+  ;; this function have bugs
   (do ((sample-num (length samples))
        (sample (pop samples) (pop samples))
        (sample-id 0 (incf sample-id)))
@@ -258,9 +259,9 @@ Then, the individual gradients would be averaged to get the total gradient."))
                    for sensitivity in (sensitivities bp)
                    collect (matrix-sub bias (matrix-product (/ alpha sample-num)
                                                             sensitivity))))
-       (format t "~&Batch backpropagation completed~%")
+       ;;(format t "~&Batch backpropagation completed~%")
        bp)
-    (format t "~&Sample id: ~d, contents: ~d~%" sample-id sample)
+    ;;(format t "~&Sample id: ~d, contents: ~d~%" sample-id sample)
     (let ((a (propagation-forward bp (if (numberp (car sample))
                                          (car sample)
                                          (list (car sample)))));propagation forward and collect the intermediate states
@@ -287,8 +288,8 @@ Then, the individual gradients would be averaged to get the total gradient."))
                          (when derivative (sensitivity-update derivative net-input next-weight sensitivity))))
            ((= idx 0)
             (setf (gradients-sum bp) new-gradients)
-            (setf (sensitivities bp) new-sensitivities)
-            (format t "~&Accumulate gradient and sensitivity `~d` completed!~%" sample))
+            (setf (sensitivities bp) new-sensitivities))
+            ;;(format t "~&Accumulate gradient and sensitivity `~d` completed!~%" sample))
         (push (if g
                   (matrix-add g (matrix-product sensitivity (transpose input)))
                   (matrix-product sensitivity (transpose input)))
@@ -358,8 +359,8 @@ Then, the individual gradients would be averaged to get the total gradient."))
                              :transfer-list (list #'logsig #'purelin)
                              :derivative-list (list :logsig :purelin)))
         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 11)))
-    ;;(backpropagation-batch bp data 0.1)
-    (dotimes (i 1000) (backpropagation bp data 0.2))
+    (dotimes (i 10000) (backpropagation-batch bp data 0.1)) ;have unknown bugs
+    ;;(dotimes (i 1000) (backpropagation bp data 0.2)) ;result correct
     (loop for (input target) in data
           do (format t "~&~f ~,3f ~,3f~%" input (propagation-forward-without-states bp input) target))
     ))
