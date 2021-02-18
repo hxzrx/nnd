@@ -171,6 +171,12 @@
         collect
         (basic-list-scalar* row n)))
 
+(defmethod matrix-multiple-scalar ((n number) (matrix list))
+  "number * matrix"
+  (loop for row in matrix
+        collect
+        (basic-list-scalar* row n)))
+
 (defmethod matrix-multiple-scalar ((matrix number) (n number))
   "number * number"
   (* matrix n))
@@ -955,3 +961,20 @@ if min and max were nil, the elements will be real number in [0, 1]"))
       (loop for slice in (matrix-slice% (matrix-sub n2 n1) num)
             collect (matrix-add n1 slice))
       (matrix-divide-scalar (matrix-add n1 n2) 2)))
+
+(defgeneric matrix-translation (matrix translate-scale)
+  (:documentation "matrix translating"))
+
+(defmethod matrix-translation ((matrix list) (translate-scale number))
+  "matrix add another matrix whose elements are the same"
+  (let ((size (matrix-size matrix)))
+    (matrix-add matrix (matrix-multiple-scalar (make-ones (car size) (cdr size)) translate-scale))))
+
+(defmethod matrix-translation ((translate-scale number) (matrix list))
+  "matrix add another matrix whose elements are the same"
+  (let ((size (matrix-size matrix)))
+    (matrix-add matrix (matrix-multiple-scalar (make-ones (car size) (cdr size)) translate-scale))))
+
+(defmethod matrix-translation ((translate-scale number) (matrix number))
+  "number + number"
+  (+ matrix translate-scale))
