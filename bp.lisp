@@ -85,8 +85,8 @@
     (when (not (or (and init-biases init-weights) (and (null init-biases) (null init-weights))))
       (error "weights and biases should be initialized to both nil or both non-nil"))
     (cond (init-neurons ;randomly initialize weights and biases
-           (setf weights (neurons-to-random-weights init-neurons))
-           (setf biases  (neurons-to-random-biases  init-neurons)))
+           (setf weights (neurons-to-random-weights init-neurons -0.5 0.5)) ;-0.5 to 0.5 is suggested in exercise 11.25, page 209
+           (setf biases  (neurons-to-random-biases  init-neurons -0.5 0.5)))
           (init-weights ;update neurons after the weights are initialized
            (setf neurons (neurons-from-weights init-weights)))
           (t (format t "~&Unkown condition when initialize bp-network.~%")
@@ -153,25 +153,6 @@
   (setf (outputs    bp) nil)
   (propagation-forward% bp input (weights bp) (biases bp) (transfers bp)))
 
-#|
-(setf bp1 (make-bp-network :weight-list '(((1 -1) (1 0)) ((1 1)))
-                          :bias-list '(((1) (2)) 1)
-                          :transfer-list (list #'cube #'purelin)))
-(propagation-forward-without-states bp1 '((-1) (1)))
-(propagation-forward bp1 '((-1) (1)))
-
-(setf bp2 (make-bp-network :weight-list '(-1 -2)
-                           :bias-list '(1 1)
-                           :transfer-list (list #'tansig #'tansig)))
-(propagation-forward-without-states bp2 -1)
-(propagation-forward bp2 -1)
-
-(setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
-                           :bias-list '(((-0.48) (-0.13)) 0.48)
-                           :transfer-list (list #'logsig #'purelin)))
-(propagation-forward-without-states bp3 1)
-(propagation-forward bp3 1)
-|#
 
 (defgeneric derivative-diag (fun vars)
   (:documentation "F'(n) = diag(f'(n1) f'(n2) ... f'(nm))"))
@@ -227,6 +208,15 @@
           (sensitivity (sensitivity-init derivative net-input target a)
                        (when derivative (sensitivity-update derivative net-input next-weight sensitivity))))
          ((= idx 0)
+          ;; as the body part of this do* has side effects, so we have to duplicate this piece of code that's original in the body, otherwise, the first lay' weight and bias will be lost
+          (push (matrix-sub (car cur-weights) (reduce #'matrix-product
+                                                      (list alpha
+                                                            sensitivity
+                                                            (if (numberp input) input (transpose input)))))
+                new-weights)
+          (push (matrix-sub cur-bias (matrix-product alpha sensitivity))
+                new-bias)
+
           (setf (weights bp) new-weights)
           (setf (biases bp) new-bias)
           bp)
@@ -237,7 +227,7 @@
             new-weights)
       (push (matrix-sub cur-bias (matrix-product alpha sensitivity))
             new-bias)
-      (terpri))))
+      )))
 
 (defgeneric backpropagation (bp samples alpha)
   (:documentation "backpropagation for all the samples, update the parameters for each example"))
@@ -245,25 +235,6 @@
 (defmethod backpropagation ((bp bp-network) (samples list) (alpha real))
   (dolist (sample samples)
     (backpropagation% bp sample alpha)))
-
-;;;; p186, 11.2.3 example
-#|
-(setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
-                           :bias-list '(((-0.48) (-0.13)) 0.48)
-                           :transfer-list (list #'logsig #'purelin)
-                           :derivative-list (list :logsig :purelin)))
-(backpropagation% bp3 (list 1 (1+ (sin (/ pi 4)))) 0.1)
-(backpropagation  bp3 (list (list 1 (1+ (sin (* (/ pi 4) 1))))
-                            (list -2 (1+ (sin (* (/ pi 4) -2))))
-                            (list 2 (1+ (sin (* (/ pi 4) 2))))) 0.1)
-
-;;;; p198, P11.7
-(setf bp4 (make-bp-network :weight-list '(-1 -2)
-                           :bias-list '(1 1)
-                           :transfer-list (list #'tansig #'tansig)
-                           :derivative-list (list :tansig :tansig)))
-(backpropagation% bp4 (list -1 1) 1)
-|#
 
 (defgeneric backpropagation-batch (bp samples alpha)
   (:documentation "The total gradient of the mean square error is the mean of the gradients of the individual squared errors.
@@ -303,7 +274,7 @@ Then, the individual gradients would be averaged to get the total gradient."))
           (new-sensitivities nil)
           (sensitivities (reverse (sensitivities bp)))
           (target (if (numberp (cadr sample)) (cadr sample) (transpose (list (cadr sample))))))
-      (do* ((idx (length (weights bp)) (decf idx))
+      (do* ((idx (length (weights bp)) (decf idx)) ;may have bug, if found, see backpropagation%
             (next-weight nil (car cur-weights))
             (cur-weights weight-list (cdr cur-weights))
             (cur-bias (pop bias-list) (pop bias-list))
@@ -326,6 +297,45 @@ Then, the individual gradients would be averaged to get the total gradient."))
               new-sensitivities)))))
 
 #|
+(setf bp1 (make-bp-network :weight-list '(((1 -1) (1 0)) ((1 1)))
+                          :bias-list '(((1) (2)) 1)
+                          :transfer-list (list #'cube #'purelin)))
+(propagation-forward-without-states bp1 '((-1) (1)))
+(propagation-forward bp1 '((-1) (1)))
+
+(setf bp2 (make-bp-network :weight-list '(-1 -2)
+                           :bias-list '(1 1)
+                           :transfer-list (list #'tansig #'tansig)))
+(propagation-forward-without-states bp2 -1)
+(propagation-forward bp2 -1)
+
+(setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
+                           :bias-list '(((-0.48) (-0.13)) 0.48)
+                           :transfer-list (list #'logsig #'purelin)))
+(propagation-forward-without-states bp3 1)
+(propagation-forward bp3 1)
+|#
+
+;;;; p186, 11.2.3 example
+#|
+(setf bp3 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
+                           :bias-list '(((-0.48) (-0.13)) 0.48)
+                           :transfer-list (list #'logsig #'purelin)
+                           :derivative-list (list :logsig :purelin)))
+(backpropagation% bp3 (list 1 (1+ (sin (/ pi 4)))) 0.1)
+(backpropagation  bp3 (list (list 1 (1+ (sin (* (/ pi 4) 1))))
+                            (list -2 (1+ (sin (* (/ pi 4) -2))))
+                            (list 2 (1+ (sin (* (/ pi 4) 2))))) 0.1)
+
+;;;; p198, P11.7
+(setf bp4 (make-bp-network :weight-list '(-1 -2)
+                           :bias-list '(1 1)
+                           :transfer-list (list #'tansig #'tansig)
+                           :derivative-list (list :tansig :tansig)))
+(backpropagation% bp4 (list -1 1) 1)
+|#
+
+#|
 (setf bp5 (make-bp-network :weight-list '(((-0.27) (-0.41)) ((0.09 -0.17)))
                            :bias-list '(((-0.48) (-0.13)) 0.48)
                            :transfer-list (list #'logsig #'purelin)
@@ -335,8 +345,21 @@ Then, the individual gradients would be averaged to get the total gradient."))
                                  (list 2 (1+ (sin (* (/ pi 4) 2)))))
                        0.1)
 |#
+
 #|
 (setf bp6 (make-bp-network :weight-list '(0.4) :bias-list '(0.15)
                            :transfer-list (list #'logsig) :derivative-list (list :logsig)))
 (backpropagation-batch bp6 (list (list -3 0.5) (list 2 1)) 1)
 |#
+
+;; page 209, E11.25
+(defun exercise-11.25 ()
+  (let ((bp (make-bp-network :neuron-list (list 1 10 1)
+                             :transfer-list (list #'logsig #'purelin)
+                             :derivative-list (list :logsig :purelin)))
+        (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 11)))
+    ;;(backpropagation-batch bp data 0.1)
+    (dotimes (i 1000) (backpropagation bp data 0.2))
+    (loop for (input target) in data
+          do (format t "~&~f ~,3f ~,3f~%" input (propagation-forward-without-states bp input) target))
+    ))
