@@ -301,3 +301,9 @@ eg. (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10
           collect (list (column-vector-to-list input)
                         (add-noise (column-vector-to-list (funcall gen-fun input))
                                    mu sigma)))))
+
+(defun list-to-vector (lst)
+  "conver a list of numbers to a column vector, if `lst is a number, return the number itself"
+  (if (listp lst)
+      (transpose (list lst))
+      lst))
