@@ -19,11 +19,6 @@
                         :type list
                         :initform nil
                         :documentation "the list of marquardt-sensitives of all the parameters")
-   #+:ignore(neuron-nums :initarg :neuron-nums
-                :accessor neuron-nums
-                :type list
-                :initform nil
-                :documentation "the list of the neuron num of each layer")
    (parameter-num :initarg :parameter-num
                   :accessor parameter-num
                   :type integer
@@ -55,7 +50,7 @@
 
 
 (defun interval-location (f init-point direction epsilon)
-  "evaluation F(x0 + ε*p0), F(x0 + 2ε*p0), F(x0 + 4ε*p0), ..., and stops when F has a successive incresement"
+  "evaluation F(x0 + ε*p0), F(x0 + 2ε*p0), F(x0 + 4ε*p0), ..., and stops when F has a successive incresement, page 219"
   (flet ((eval-fun (f init-point direction epsilon) ;evaluation function for a quadratic function, F(x0 + ε*p0)
            (funcall f (matrix-add init-point
                                   (matrix-product epsilon direction)))))
@@ -67,7 +62,7 @@
       #+:ignore(format t "~&i: ~d, ε=~f, F_k-1=~f, F_k=~f~%" i ep F-prev Fx))))
 
 (defun golden-section-search (f init-point direction a0 b0 &optional (tao 0.618) (tolerance 0.01))
-  "used in interval reduction"
+  "used in interval reduction, page 220"
   (flet ((eval-fun (f init-point direction epsilon) ;evaluation function for a quadratic function, F(x0 + ε*p0)
            (funcall f (matrix-add init-point
                                   (matrix-product epsilon direction)))))
