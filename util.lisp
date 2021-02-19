@@ -303,12 +303,12 @@ eg. (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 4) x)))) -2 2 11 :t
     (:uniform (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
                     collect (list (column-vector-to-list input)
                                   (column-vector-to-list (funcall gen-fun input)))))
-    (:random (loop for i from 0 to gen-num
+    (:random (loop for i from 0 below gen-num
                    for x = (rand-between min-vec max-vec)
                    collect (list (column-vector-to-list x)
                                  (column-vector-to-list (funcall gen-fun x)))))))
 
-(defun data-generator-gauss-noise (gen-fun min-vec max-vec gen-num mu sigma)
+(defun data-generator-gauss-noise (gen-fun min-vec max-vec gen-num mu sigma &key type)
   "generate a list of data, given a function and it's input intervals as well as how many data we need, with gauss noise, i.i.d.!
 min-vec and max-vec should be column vector,
 the result will convert to a well formed such as (list '((p11 p12) (a11 a12)) '((p21 p22) (a21 a22)) ...)
@@ -318,10 +318,18 @@ eg. (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10
                (loop for i in lst
                      collect (+ i (gauss-random mu sigma)))
                (+ lst (gauss-random mu sigma)))))
-    (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
-          collect (list (column-vector-to-list input)
-                        (add-noise (column-vector-to-list (funcall gen-fun input))
-                                   mu sigma)))))
+    (ecase type
+      (:uniform
+       (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
+             collect (list (column-vector-to-list input)
+                           (add-noise (column-vector-to-list (funcall gen-fun input))
+                                      mu sigma))))
+      (:random
+       (loop for i from 0 below gen-num
+             for x = (rand-between min-vec max-vec)
+             collect (list (column-vector-to-list x)
+                           (add-noise (column-vector-to-list (funcall gen-fun x))
+                                      mu sigma)))))))
 
 (defun list-to-vector (lst)
   "conver a list of numbers to a column vector, if `lst is a number, return the number itself"
