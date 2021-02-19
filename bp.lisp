@@ -364,7 +364,7 @@ Then, the individual gradients would be averaged to get the total gradient."))
   (let ((bp (make-bp-network :neuron-list (list 1 10 1)
                              :transfer-list (list #'logsig #'purelin)
                              :derivative-list (list :logsig :purelin)))
-        (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 11)))
+        (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 11 :type :uniform)))
     (dotimes (i 1000 (format t "~&----Turn: ~d----~%" i))
                 (backpropagation-batch bp data 0.1)) ;have unknown bugs
     ;;(dotimes (i 1000) (backpropagation bp data 0.2)) ;result correct

@@ -369,7 +369,7 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
                                   :bias-list '(((-0.48) (-0.13)) 0.48)
                                   :transfer-list (list #'logsig #'purelin)
                                   :derivative-list (list :logsig :purelin)))
-         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) 1 0 2))
+         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) 1 0 2 :type :uniform))
          (jacobian (calc-jacobian! lmbp data)))
     (format t "~&Jacobian matrix:~&~d~%" jacobian)))
 
@@ -381,7 +381,7 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
          (lmbp (make-lmbp-network :neuron-list (list 1 10 1)
                                   :transfer-list (list #'logsig #'purelin)
                                   :derivative-list (list :logsig :purelin)))
-         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 4) x)))) -2 2 11)))
+         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 4) x)))) -2 2 11 :type :uniform)))
     (declare (ignore sdbp))
     ;;(dotimes (i 10000) (backpropagation-batch sdbp data 0.1)) ;have unknown bugs
     (levenberg-marquardt-backpropagation lmbp data) ;LMBP, result correct
