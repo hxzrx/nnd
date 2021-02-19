@@ -183,7 +183,7 @@ note this return a row vector, not column vector"
     (setf new-biases (reverse new-biases))
     (setf (weights network) new-weights)
     (setf (biases network) new-biases)
-    (list new-weights new-biases)))
+    t)) ;;always return true
 
 (defmethod marquardt-sensitivity-init (derivative net-inputs)
   "(12.46), Marquardt sensitivity, for the last layer, Sᴹ = -1 ∂Fᴹ(nᴹ),
@@ -266,7 +266,7 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
   (setf (error-vector lmbp) nil)
   (setf (jacobian lmbp) nil)
   (reset-squared-error-sum! lmbp)
-
+  ;; caution about the side effects!!
   (dolist (sample samples (jacobian lmbp))
     (calc-jacobian!% lmbp sample))
   (jacobian lmbp))
@@ -292,8 +292,7 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
           (JᵀJ (matrix-product (transpose jacobian) jacobian)
                (matrix-product (transpose jacobian) jacobian))
           (gradient (reduce #'matrix-product (list 2 (transpose jacobian) error-vector)) ;equation (12.22)
-                    (reduce #'matrix-product (list 2 (transpose jacobian) error-vector)))
-          )
+                    (reduce #'matrix-product (list 2 (transpose jacobian) error-vector))))
          ((<(norm gradient) tolerance)
           (format t "~&LMBP Converged in <~d> iterations! Gradient norm: ~,5f, SSE: ~,5f~%" j (norm gradient) (squared-error-sum lmbp))
           lmbp)
@@ -307,16 +306,15 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
             (new-x (matrix-add x Δx) (matrix-add x Δx)) ; equation (12.31)
             (old-weights (weights lmbp) (weights lmbp))
             (old-biases (biases lmbp) (biases lmbp))
-            (old-squared-error-sum (squared-error-sum lmbp) (squared-error-sum lmbp)) ;F(x), computed when the jacobian was computed
-            (dummy (list-to-parameters! lmbp (car (transpose new-x))) ;update weights and biases
-                   (list-to-parameters! lmbp (car (transpose new-x))))
-            (new-squared-error-sum (update-squared-error-sum! lmbp samples)
-                                   (update-squared-error-sum! lmbp samples))
-            )
-           ((< new-squared-error-sum old-squared-error-sum) ;step 4
+            (old-sse (squared-error-sum lmbp) (squared-error-sum lmbp)) ; F(x), computed when the jacobian was computed
+            (dummy (list-to-parameters! lmbp (car (transpose new-x))) ; update weights and biases, use it's side effect
+                   (list-to-parameters! lmbp (car (transpose new-x)))) ; and the returned value is not used
+            (new-sse (update-squared-error-sum! lmbp samples)
+                     (update-squared-error-sum! lmbp samples)))
+           ((< new-sse old-sse) ;step 4
             (setf μ (/ μ θ))
             (setf x new-x))
-        ;;(format t "~&Old SSE: ~,3f, new SSE: ~,3f~%" old-squared-error-sum new-squared-error-sum)
+        ;;(format t "~&Old SSE: ~,3f, new SSE: ~,3f~%" old-sse new-sse)
         (setf μ (* μ θ))
         (setf (weights lmbp) old-weights)
         (setf (biases lmbp) old-biases))
