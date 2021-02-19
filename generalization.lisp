@@ -98,12 +98,12 @@ this function return the reverse of Hessian matrix, H⁻¹"
   (let* ((θ theta)
          (μ mu)
          (x (transpose (parameters-to-list lmbp)))
-         (jacobian (calc-jacobian lmbp samples))
+         (jacobian (calc-jacobian! lmbp samples))
          (JᵀJ (matrix-product (transpose jacobian) jacobian))
          ;;(gradient (reduce #'matrix-product (list 2 (transpose jacobian) x)))
          )
-    (do* ((hessian-approx-inv (hessian-approximation JᵀJ μ)
-                              (hessian-approximation JᵀJ μ))
+    (do* ((hessian-approx-inv (hessian-approximation-inv JᵀJ μ)
+                              (hessian-approximation-inv JᵀJ μ))
           (Δx (reduce #'matrix-product (list -1 hessian-approx-inv (transpose jacobian) x))
               (reduce #'matrix-product (list -1 hessian-approx-inv (transpose jacobian) x)))
           (new-x (matrix-add x Δx) (matrix-add x Δx))
@@ -137,7 +137,8 @@ this function return the reverse of Hessian matrix, H⁻¹"
 
 (defun bayesian-regularization (network train-set &optional (tolerance 0.01))
   "algorithm in page 250, Chinese ed. or page 483 in English pdf ed.
-currently the network should be lmbp type"
+currently the network should be lmbp type
+"
   (let* ((Ed-init (calc-Eᴅ network train-set))
          (Ew-init (calc-Eᴡ network))
          (parameter-num (parameter-num network)) ; n in the raw algorithm, the total number of parameters in the network
