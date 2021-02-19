@@ -4,26 +4,27 @@
 
 (defun estimate-generalization-error (learner output-function test-set performance-function)
   "learner: a neural network instance such as bp-network,
-output-function: a method of `learner, it will make an output when giving an input,
+output-function: a method of `learner such as propagation-forward-without-states, it will make an output when giving an input ,
 test-set: a data set for estimating error,
 performance-function: a function to compute the error, this function may be implemented by a partial function"
   (funcall performance-function
            (loop for (data target) in test-set
-                 collect (list target  ; get (target  output) list
-                               (funcall output-function learner data)))))
+                 collect (list (funcall output-function learner data) ; get (target  output) list
+                               target
+                               ))))
 
 (defun equare-error-sum-f ()
-  "performance function: Σ(t-a)ᵀ(t-a)"
-  #'(lambda (target-output-cons)
-      (loop for (target output) in target-output-cons
+  "performance function: Σ(t-a)ᵀ(t-a), this is the proto function of performance"
+  #'(lambda (output-target-list)
+      (loop for (output target) in output-target-list
             sum (matrix-product (transpose (matrix-sub target output))
                                 (matrix-sub target output)))))
 
 (defun equare-error-sum-penalty-f (net-parameters beta alpha)
-  "performance function: βΣ(t-a)ᵀ(t-a) + αΣx²,
+  "performance function: βΣ(t-a)ᵀ(t-a) + αΣx², this is the proto function of performance
 net-parameters is a column vector of the net's parameters(weights and biases)"
-  #'(lambda (target-output-cons)
-      (+ (* beta (loop for (target output) in target-output-cons
+  #'(lambda (output-target-list)
+      (+ (* beta (loop for (output target) in output-target-list
                        sum (matrix-product (transpose (matrix-sub target output))
                                            (matrix-sub target output))))
          (* alpha (matrix-product (transpose net-parameters)
@@ -41,14 +42,14 @@ Use cross-validation to decide when to stop."
          ((strict-ascending-list-p (get-contents performance-value-queue))
           (setf (weights network) (popq weights-queue))
           (setf (biases network) (popq biases-queue))
-          (format t "~&Trained ~d turns.~%" i)
+          (format t "~&Trained ~d turns, performance index in validation set: ~,4f~%" i (popq performance-value-queue))
           network)
       (funcall training-f network train-set)
-      (addq (weights network) weights-queue)
-      (addq (biases network) biases-queue)
+      (addq weights-queue (weights network))
+      (addq biases-queue (biases network))
       (addq performance-value-queue (funcall performance-f network validation-set)))))
 
-(defun early-stooping (network training-f data-set performance-f)
+(defun early-stopping (network training-f data-set performance-f)
   "shuffle and then partition the data set, use cross validation to train the network"
   (let* ((part-ratio (list 70 15 15))
          (error-inc-threshold 3)
@@ -164,3 +165,35 @@ currently the network should be lmbp type"
       (setf gamma (- parameter-num (* 2 alpha (matrix-trace hessian-inverse))))
       (setf alpha (/ gamma (* 2 weight-pernalty)))
       (setf beta (/ (- all-output-dimensions gamma) (* 2 square-error-sum))))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; examples and exercises
+
+(defun exercise-13.15 (&optional (alpha 0.1))
+  "page 269, E13.15"
+  (let ((lmbp (make-lmbp-network :neuron-list (list 1 30 1)
+                             :transfer-list (list #'logsig #'purelin)
+                               :derivative-list (list :logsig :purelin)))
+        (train-function #'(lambda (network train-data) (backpropagation network train-data alpha)))
+        (performance-function
+          #'(lambda (network validation-set)
+              (funcall (equare-error-sum-f)  ; proto of the performance function
+                       (loop for (input target) in validation-set
+                             collect (list (propagation-forward-without-states
+                                            network
+                                            (transpose (list-to-vector input)))
+                                           (transpose (list-to-vector target)))))))
+        (train-set (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10 0 0.01 :type :random))
+        (validation-set (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 0 0.01 :type :random))
+        (test-set (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 20 :type :random)))
+
+    (early-stopping% lmbp train-function train-set validation-set performance-function 10)
+
+    (loop for (input target) in test-set
+          do (format t "~&~f ~,3f ~,3f~%"
+                     input
+                     (propagation-forward-without-states lmbp (list-to-vector input))
+                     target))
+    (format t "~&performance index: ~,4f~%" (funcall performance-function lmbp test-set))
+    ))
