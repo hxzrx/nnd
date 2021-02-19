@@ -190,11 +190,31 @@ currently the network should be lmbp type"
 
     (early-stopping% lmbp train-function train-set validation-set performance-function 10)
 
-    (loop for (input target) in test-set
+    (loop for (input target) in (sort test-set #'< :key #'first) ;test-set
           do (format t "~&~f ~,3f ~,3f~%"
                      input
                      (propagation-forward-without-states lmbp (list-to-vector input))
                      target))
-    (format t "~&generalization error: ~d~%" (estimate-generalization-error lmbp #'propagation-forward-without-states test-set (equare-error-sum-f)))
+    (format t "~&generalization error: ~d~%"
+            (estimate-generalization-error lmbp #'propagation-forward-without-states test-set (equare-error-sum-f)))
     (format t "~&performance index: ~,4f~%" (funcall performance-function lmbp test-set))
+    ))
+
+(defun exercise-13.16 ()
+  "page 269, E13.16, Chinese edition"
+  (let ((bp (make-bp-network :neuron-list (list 1 30 1)
+                             :transfer-list (list #'logsig #'purelin)
+                             :derivative-list (list :logsig :purelin)))
+        (train-set (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10 0 0.01 :type :random))
+        (test-set (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 20 :type :random)))
+
+    (bayesian-regularization bp train-set)
+
+    (loop for (input target) in (sort test-set #'< :key #'first)
+          do (format t "~&~f ~,3f ~,3f~%"
+                     input
+                     (propagation-forward-without-states bp (list-to-vector input))
+                     target))
+    (format t "~&generalization error: ~d~%"
+            (estimate-generalization-error bp #'propagation-forward-without-states test-set (equare-error-sum-f)))
     ))
