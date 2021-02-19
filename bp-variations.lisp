@@ -19,11 +19,6 @@
                         :type list
                         :initform nil
                         :documentation "the list of marquardt-sensitives of all the parameters")
-   (parameter-num :initarg :parameter-num
-                  :accessor parameter-num
-                  :type integer
-                  :initform 0
-                  :documentation "sum of the number of the elements of weights and biased of all layers")
    (squared-error-sum :initarg :squared-error-sum
                       :accessor squared-error-sum
                       :type real
@@ -42,6 +37,8 @@
                  :derivatives (loop for d-type in derivative-list
                                     collect (derivative d-type))))
 
+#+:ignore
+;; the parameter-num slot was moved to bp object, along with it's initializing
 (defmethod initialize-instance :after ((lmbp lmbp-network) &key &allow-other-keys)
   ""
   (flet ((layer-param-sum (a) (* (cdr a) (1+ (car a))))) ; add 1 to denote the bias num
@@ -381,7 +378,7 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
          (lmbp (make-lmbp-network :neuron-list (list 1 10 1)
                                   :transfer-list (list #'logsig #'purelin)
                                   :derivative-list (list :logsig :purelin)))
-         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 4) x)))) -2 2 11 :type :uniform)))
+         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 4) x)))) -2 2 11 :type )))
     (declare (ignore sdbp))
     ;;(dotimes (i 10000) (backpropagation-batch sdbp data 0.1)) ;have unknown bugs
     (levenberg-marquardt-backpropagation lmbp data) ;LMBP, result correct

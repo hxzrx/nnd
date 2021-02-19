@@ -20,10 +20,15 @@
             :initform nil
             :documentation "the list of weight matrices for the layers")
    (biases :initarg :biases
-         :accessor biases
-         :type list
-         :initform nil
-         :documentation "the list of biases for the layers")
+           :accessor biases
+           :type list
+           :initform nil
+           :documentation "the list of biases for the layers")
+   (parameter-num :initarg :parameter-num ;this slot should be in bp object, since the regularization need it
+                  :accessor parameter-num
+                  :type integer
+                  :initform 0
+                  :documentation "sum of the number of the elements of weights and biased of all layers")
    (net-inputs :initarg :net-inputs
                :accessor net-inputs
                :type list
@@ -72,25 +77,29 @@
 
 (defmethod initialize-instance :after ((bp bp-network) &key init-weights init-biases init-neurons &allow-other-keys)
   "init-weights and init-neurons should not be non-nil at the same time, and should not be nil at the same time"
-  (with-accessors ((neurons neurons)
-                   (weights weights)
-                   (biases biases)) bp
-    (setf neurons init-neurons)
-    (setf weights init-weights)
-    (setf biases  init-biases)
-    (when (or (and init-neurons init-weights) (and (null init-neurons) (null init-weights)))
-      (error "neurons and weights should not be initialized to nil at the same time"))
-    (when (and neurons weights)
-      (error "neurons and weights should not be initialized to non-nil at the same time"))
-    (when (not (or (and init-biases init-weights) (and (null init-biases) (null init-weights))))
-      (error "weights and biases should be initialized to both nil or both non-nil"))
-    (cond (init-neurons ;randomly initialize weights and biases
-           (setf weights (neurons-to-random-weights init-neurons -0.5 0.5)) ;-0.5 to 0.5 is suggested in exercise 11.25, page 209
-           (setf biases  (neurons-to-random-biases  init-neurons -0.5 0.5)))
-          (init-weights ;update neurons after the weights are initialized
-           (setf neurons (neurons-from-weights init-weights)))
-          (t (format t "~&Unkown condition when initialize bp-network.~%")
-             (error "Unkown condition when initialize bp-network.")))))
+  (flet ((layer-param-sum (a) (* (cdr a) (1+ (car a))))) ; add 1 to denote the bias num
+    (with-accessors ((neurons neurons)
+                     (weights weights)
+                     (biases biases)
+                     (parameters parameter-num)) bp
+      (setf neurons init-neurons)
+      (setf weights init-weights)
+      (setf biases  init-biases)
+      (when (or (and init-neurons init-weights) (and (null init-neurons) (null init-weights)))
+        (error "neurons and weights should not be initialized to nil at the same time"))
+      (when (and neurons weights)
+        (error "neurons and weights should not be initialized to non-nil at the same time"))
+      (when (not (or (and init-biases init-weights) (and (null init-biases) (null init-weights))))
+        (error "weights and biases should be initialized to both nil or both non-nil"))
+      (cond (init-neurons ;randomly initialize weights and biases
+             (setf weights (neurons-to-random-weights init-neurons -0.5 0.5)) ;-0.5 to 0.5 is suggested in exercise 11.25, page 209
+             (setf biases  (neurons-to-random-biases  init-neurons -0.5 0.5)))
+            (init-weights ;update neurons after the weights are initialized
+             (setf neurons (neurons-from-weights init-weights)))
+            (t (format t "~&Unkown condition when initialize bp-network.~%")
+               (error "Unkown condition when initialize bp-network.")))
+      (setf parameters (loop for w in (weights bp) sum (if (numberp w) 2 (layer-param-sum (matrix-size w)))))
+      )))
 
 
 ;;;; get the result of the network given the input and parameters
