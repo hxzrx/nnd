@@ -6,11 +6,11 @@
   "learner: a neural network instance such as bp-network,
 output-function: a method of `learner such as propagation-forward-without-states, it will make an output when giving an input ,
 test-set: a data set for estimating error,
-performance-function: a function to compute the error, this function may be implemented by a partial function"
+performance-function: a function, such as equare-error-sum-f, compute the error, this function may be implemented by a partial function"
   (funcall performance-function
            (loop for (data target) in test-set
-                 collect (list (funcall output-function learner data) ; get (target  output) list
-                               target
+                 collect (list (funcall output-function learner (list-to-vector data)) ; get (output target) list
+                               (list-to-vector target)
                                ))))
 
 (defun equare-error-sum-f ()
@@ -176,7 +176,7 @@ currently the network should be lmbp type"
                              :transfer-list (list #'logsig #'purelin)
                                :derivative-list (list :logsig :purelin)))
         (train-function #'(lambda (network train-data) (backpropagation network train-data alpha)))
-        (performance-function
+        (performance-function ;it has the same effect as #'estimate-generalization-error, see the prints
           #'(lambda (network validation-set)
               (funcall (equare-error-sum-f)  ; proto of the performance function
                        (loop for (input target) in validation-set
@@ -195,5 +195,6 @@ currently the network should be lmbp type"
                      input
                      (propagation-forward-without-states lmbp (list-to-vector input))
                      target))
+    (format t "~&generalization error: ~d~%" (estimate-generalization-error lmbp #'propagation-forward-without-states test-set (equare-error-sum-f)))
     (format t "~&performance index: ~,4f~%" (funcall performance-function lmbp test-set))
     ))
