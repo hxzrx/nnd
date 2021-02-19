@@ -95,8 +95,9 @@
       (format t "~&~d: Fc=~f, Fd= ~f, a=~f, b=~f, c=~f, d=~f~%" iter-num Fc Fd a b c d)
       )))
 
-(defun variable-learning-rate (f gradient init-point alpha gamma eta rho zeta &optional (tolerance 0.01))
-  "f is the performance index function,
+(defun variable-learning-backpropagation (f gradient init-point alpha gamma eta rho zeta &optional (tolerance 0.01))
+  "VLBP,
+f is the performance index function,
 gradient is the list of gradient (presented as functions) for each variable
 alpha is the learning rate
 gamma is the momentum
@@ -340,7 +341,7 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
   (let ((f (quadratic-function '((2 0) (0 50))))
         (g (list #'(lambda (x1 x2) (declare (ignore x2)) (* 2 x1))
                  #'(lambda (x1 x2) (declare (ignore x1)) (* 50 x2)))))
-    (variable-learning-rate f g '((0.5) (0.5)) 0.05 0.2 1.5 0.5 0.05)))
+    (variable-learning-backpropagation f g '((0.5) (0.5)) 0.05 0.2 1.5 0.5 0.05)))
 
 (defun example-12.5 ()
   "page 234, Chinese ed."
