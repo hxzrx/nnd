@@ -113,7 +113,7 @@
                    of the instance of bp"))
 
 (defmethod propagation-forward% ((bp bp-network) (input list) (weights list) (biases list) (transfers list))
-  "for input is a column vector"
+  "when input is a column vector"
   (if (null weights)
       input
       (let* ((n (matrix-add (matrix-product (car weights) input)
@@ -125,7 +125,7 @@
         (propagation-forward% bp a (cdr weights) (cdr biases) (cdr transfers)))))
 
 (defmethod propagation-forward% ((bp bp-network) (input number) (weights list) (biases list) (transfers list))
-  "for input is a number"
+  "when input is a number"
   (if (null weights)
       input
       (let* ((n (matrix-add (matrix-product (car weights) input)
@@ -186,9 +186,7 @@
 
 (defmethod backpropagation% ((bp bp-network) (sample list) (alpha real))
   "back propagation for one sample"
-  (let* ((a (propagation-forward bp (if (numberp (car sample))
-                                        (car sample)
-                                        (list (car sample)))));propagation forward and collect the intermediate states
+  (let* ((a (propagation-forward bp (list-to-vector (first sample))));propagation forward and collect the intermediate states
          (new-weights nil)
          (new-bias nil)
          (weight-list (reverse (weights bp)))
@@ -233,8 +231,10 @@
   (:documentation "backpropagation for all the samples, update the parameters for each example"))
 
 (defmethod backpropagation ((bp bp-network) (samples list) (alpha real))
+  "note that only one turn of recursion for all samples"
   (dolist (sample samples)
-    (backpropagation% bp sample alpha)))
+    (backpropagation% bp sample alpha))
+  bp)
 
 (defgeneric backpropagation-batch (bp samples alpha)
   (:documentation "The total gradient of the mean square error is the mean of the gradients of the individual squared errors.
@@ -245,8 +245,8 @@ Then, the individual gradients would be averaged to get the total gradient."))
 (defmethod backpropagation-batch ((bp bp-network) (samples list) (alpha real))
   "we keep sum of the gradients in the slot of gradients-sum of bp and increase the value for each sample"
   ;; this function have bugs
-  (do ((sample-num (length samples))
-       (sample (pop samples) (pop samples))
+  (let ((sample-num (length samples)))
+  (do ((sample (pop samples) (pop samples))
        (sample-id 0 (incf sample-id)))
       ((null samples)
        (setf (weights bp)
