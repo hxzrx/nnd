@@ -277,15 +277,36 @@ def boxmullersampling(mu=0, sigma=1, size=1):
   "get a normal distribution random number"
   (boxmuller-sampling mu sigma))
 
+(defgeneric rand-between (vec1 vec2)
+  (:documentation "uniform random vector or random number between the two numbers"))
+
+(defmethod rand-between ((num1 real) (num2 real))
+  "uniform random number between mum1 and mum2"
+  (if (= num1 num2) num1 (+ (min num1 num2) (random (abs (* 1.0 (- num1 num2)))))))
+
+(defmethod rand-between ((vec1 list) (vec2 list))
+  "uniform random number between two column vetors, the rank of the two vectors should be equal"
+  (let ((rank1 (matrix-size vec1))
+        (rank2 (matrix-size vec2)))
+    (assert (equal rank1 rank2))
+    (loop for r from 0 below (car rank1)
+          collect (loop for c from 0 below (cdr rank1)
+                        collect (rand-between (nth c (nth r vec1))  (nth c (nth r vec2)))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defun data-generator-accurate (gen-fun min-vec max-vec gen-num)
+(defun data-generator-accurate (gen-fun min-vec max-vec gen-num &key type)
   "generate a list of data, given a function and it's input intervals as well as how many data we need, no noise!
 min-vec and max-vec should be column vector,
 the result will convert to a well formed such as (list '((p11 p12) (a11 a12)) '((p21 p22) (a21 a22)) ...)
-eg. (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10)"
-  (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
-        collect (list (column-vector-to-list input)
-                      (column-vector-to-list (funcall gen-fun input)))))
+eg. (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 4) x)))) -2 2 11 :type :random)"
+  (ecase type
+    (:uniform (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
+                    collect (list (column-vector-to-list input)
+                                  (column-vector-to-list (funcall gen-fun input)))))
+    (:random (loop for i from 0 to gen-num
+                   for x = (rand-between min-vec max-vec)
+                   collect (list (column-vector-to-list x)
+                                 (column-vector-to-list (funcall gen-fun x)))))))
 
 (defun data-generator-gauss-noise (gen-fun min-vec max-vec gen-num mu sigma)
   "generate a list of data, given a function and it's input intervals as well as how many data we need, with gauss noise, i.i.d.!
