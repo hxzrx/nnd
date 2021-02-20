@@ -98,8 +98,9 @@
              (setf neurons (neurons-from-weights init-weights)))
             (t (format t "~&Unkown condition when initialize bp-network.~%")
                (error "Unkown condition when initialize bp-network.")))
-      (setf parameters (loop for w in (weights bp) sum (if (numberp w) 2 (layer-param-sum (matrix-size w)))))
-      )))
+      (setf parameters (loop for w in (weights bp)
+                             sum (if (numberp w) 2
+                                     (layer-param-sum (matrix-size w))))))))
 
 
 ;;;; get the result of the network given the input and parameters
