@@ -202,8 +202,8 @@ currently the network should be lmbp type
                                             network
                                             (transpose (list-to-vector input)))
                                            (transpose (list-to-vector target)))))))
-        (train-set (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10 0 0.01 :type :random))
-        (validation-set (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 0 0.01 :type :random))
+        (train-set (data-generator-uniform-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10 -0.1 0.1 :type :random))
+        (validation-set (data-generator-uniform-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 0 0.01 :type :random))
         (test-set (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 20 :type :random)))
 
     (early-stopping% lmbp train-function train-set validation-set performance-function 10)
@@ -223,7 +223,7 @@ currently the network should be lmbp type
   (let ((bp (make-lmbp-network :neuron-list (list 1 30 1)
                              :transfer-list (list #'logsig #'purelin)
                              :derivative-list (list :logsig :purelin)))
-        (train-set (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10 0 0.01 :type :random))
+        (train-set (data-generator-uniform-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 10 -0.1 0.1 :type :random))
         (test-set (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 20 :type :random)))
 
     (format t "~&parameter num: ~d~%" (parameter-num bp))
