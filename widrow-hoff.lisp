@@ -4,34 +4,6 @@
 ;;;; Apply the principles of performance learning to a single-layer linear neural network.
 ;;;; Widrow-Hoff learning is an approximate steepest descent algorithm, in which the performance index is mean square error.
 
-(defclass tapped-delay-line ()
-  ((content :initarg :content
-            :accessor content
-            :type fixed-len-unsafe-fifo
-            :documentation "a fixed length fifo, when a new element comes, the oldest element should go out"))
-  (:documentation "The input signal enters from the left.
-At the output of the tapped delay line we have an R-dimensional vector,
-consisting of the input signal at the current time and at delays of from 1 to R-1 time steps"))
-
-(defun make-tapped-delay-line (r-dimension &key (init-element 0))
-  "make an R dimensional tapped delay line, with the initial element with the default value"
-  (make-instance 'tapped-delay-line :content (make-fixed-len-unsafe-fifo r-dimension :content init-element)))
-
-(defmethod get-tdl-contents (tdl)
-  "get the contents of a tapped delay line"
-  (get-contents (content tdl)))
-
-(defmethod input-tdl (tapped-delay-line new-val)
-  "new input to the tapped-delay-line"
-  (addq (content tapped-delay-line) new-val))
-
-(defmethod outputs-tdl (tapped-delay-line)
-  "output column vector, fixed length"
-  (transpose (list (reverse (cdr (unsafe-fifo-hd (content tapped-delay-line)))))))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (defgeneric adaline (input-vec weights-matrix bias-vec &key transfer)
   (:documentation
    "ADALINE(ADAptive LInear NEuron) network input-output.
