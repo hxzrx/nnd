@@ -1,3 +1,4 @@
+
 (in-package #:nnd)
 
 (setf *random-state* (make-random-state t))
@@ -273,9 +274,14 @@ def boxmullersampling(mu=0, sigma=1, size=1):
                (cos (* 2 pi v)))))
     (+ mu (* z sigma))))
 
-(defun gauss-random (&optional (mu 0) (sigma 1))
-  "get a normal distribution random number"
-  (boxmuller-sampling mu sigma))
+(defun gauss-random (&optional min max)
+  "Get a normal distribution random number between min and max. if min and max are nils, Gaussian random numbers form a standard
+normal distribution around 0.0d0"
+  (cond ((< min max)
+         (alexandria:gaussian-random min max))
+        ((> min max)
+         (alexandria:gaussian-random max min))
+        (t min))) ;if min=max, the algorithm will take a very long time, see the doc of alexandria
 
 (defgeneric rand-between (vec1 vec2)
   (:documentation "uniform random vector or random number between the two numbers"))
