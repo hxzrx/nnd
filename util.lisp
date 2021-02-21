@@ -336,6 +336,28 @@ eg. (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 
              collect (list (column-vector-to-list x)
                            (add-noise (column-vector-to-list (funcall gen-fun x))
                                       noise-min noise-max)))))))
+(defun data-generator-uniform-noise (gen-fun min-vec max-vec gen-num noise-min noise-max &key type)
+  "generate a list of data, given a function and it's input intervals as well as how many data we need, with gauss noise, i.i.d.!
+min-vec and max-vec should be column vector,
+the result will convert to a well formed such as (list '((p11 p12) (a11 a12)) '((p21 p22) (a21 a22)) ...)
+eg. (data-generator-gauss-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 -0.1 0.1 :type :random)"
+  (flet ((add-noise (lst min max) ;lst is either a list or a number
+           (if (listp lst)
+               (loop for i in lst
+                     collect (+ i (rand-between min max)))
+               (+ lst (rand-between min max)))))
+    (ecase type
+      (:uniform
+       (loop for input in (matrix-slice min-vec max-vec gen-num) ;input is a column vector
+             collect (list (column-vector-to-list input)
+                           (add-noise (column-vector-to-list (funcall gen-fun input))
+                                      noise-min noise-max))))
+      (:random
+       (loop for i from 0 below gen-num
+             for x = (rand-between min-vec max-vec)
+             collect (list (column-vector-to-list x)
+                           (add-noise (column-vector-to-list (funcall gen-fun x))
+                                      noise-min noise-max)))))))
 
 (defun list-to-vector (lst)
   "conver a list of numbers to a column vector, if `lst is a number, return the number itself"
