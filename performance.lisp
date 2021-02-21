@@ -10,16 +10,16 @@
 
 (defgeneric steepest-descent (performance-index guessed-point &optional alpha iter-times iter-limit epsilon)
   (:documentation
-   "Suppose that the performance index is a quadratic function: 
+   "Suppose that the performance index is a quadratic function:
            F(x) = 1/2 x' A x + d' x + c
-    x(k+1) = x(k) - α(k)g(k) 
+    x(k+1) = x(k) - α(k)g(k)
     α(k) = -(g(k)' p(k)) / (p(k)' A p(k))
     where g(k) is the gradient for the k-th iteration, p(k) = -g(k)
     the algorithm stops when meets a convergence
     performance-index: the quadratic function, F(x) = 1/2 x' A x + d' x + c
     guessed-point: the initial random point
-    alpha: the learning rate, which is a small positive fixed number, 
-           or if provided with nil, will calc the best value so that it minimize the performance index, 
+    alpha: the learning rate, which is a small positive fixed number,
+           or if provided with nil, will calc the best value so that it minimize the performance index,
            alpha(k) = -1 * (gradient(k)' p(k)) / (p(k)' A(k) p(k)), where A(k) is the Hessian matrix.
   "))
 
@@ -28,9 +28,6 @@
   "performance-index, a plist denote the function, has the form: '(:A a-matrix :d a-column-vector :c a-number)
    guessed-point, a column vector, eg. '((x1) (x2)), if guessed-point is provided as nil, assign it with a random point
   "
-  ;; test, p144: (steepest-descent '(:A ((10 -6) (-6 10)) :d ((4) (4)) :c 0) '((0) (-2)) nil)
-  ;; test, p135: (steepest-descent '(:A ((2 1) (1 2)) :d ((0) (0)) :c 0) '((0.8) (-0.25)) nil)
-  ;; test, p145: (steepest-descent '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) '((1) (1)) 0.05)
   (let* ((hessian  (getf performance-index :A))
          (d-vec    (getf performance-index :d))
          (gradient (matrix-add (matrix-product hessian guessed-point) d-vec))
@@ -76,7 +73,6 @@
   "performance-index, a plist denote the function, has the form: '(:A a-matrix :d a-column-vector :c a-number)
    guessed-point, a column vector, eg. '((x1) (x2)), if guessed-point is provided as nil, assign it with a random point
   "
-  ;; test (newtons-method '(:A ((10 -6) (-6 10)) :d ((4) (4)) :c 0) '((0) (-2)) nil)
   (let* ((hessian (getf performance-index :A)))
     (if (= (det hessian) 0)
         (format t "~&Hessian matrix is invertable, cannot use Newton's Method.~%")
@@ -117,7 +113,7 @@
     beta_k = (g_k g_k) / (g_k-1 g_k-1), where (a b) is the inner product of vector a and b
     x_k+1 = x_k + alpha_k * p_k
     alpha_k = -1 * (g_k' p_k) / (p_k' A_k p_k)
-    
+
     p-k-1 is p_k-1, and g-k-1 is g_k-1
    "))
 
@@ -126,10 +122,6 @@
     "performance-index, a plist denote the function, has the form: '(:A a-matrix :d a-column-vector :c a-number)
      guessed-point, a column vector, eg. '((x1) (x2)), if guessed-point is provided as nil, assign it with a random point
     "
-  ;; test, p145: (conjugate-gradient '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) '((1) (1)))
-  ;; test, p141: (conjugate-gradient '(:A ((2 1) (1 2)) :d ((0) (0)) :c 0) '((0.8) (-0.25)))
-  ;; test, p149: (conjugate-gradient '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) '((1) (1)))
-  ;; test, p149: (conjugate-gradient '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) nil)
   (let* ((hessian (getf performance-index :A))
          (d-vec   (getf performance-index :d))
          (point   (if guessed-point
@@ -159,3 +151,34 @@
                    (format t "~&Update point,x = ~%")
                    (print-matrix new-point)
                    (conjugate-gradient performance-index new-point p-k g-k alpha iter-times iter-limit epsilon))))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; examples and exerises
+
+(defun example-page-135 ()
+  "page 135, Chinese ed."
+  (steepest-descent '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) '((1) (1)) 0.05))
+
+(defun example-9.2 ()
+  "page 144, Chinese edition"
+  (steepest-descent '(:A ((10 -6) (-6 10)) :d ((4) (4)) :c 0) '((0) (-2)) nil))
+
+(defun example-9.3 ()
+  "page 144, Chinese edition"
+  (steepest-descent '(:A ((2 1) (1 2)) :d ((0) (0)) :c 0) '((0.8) (-0.25)) nil))
+
+(defun example-newton ()
+  "function in P9.1, age 142, Chinese edition"
+  (newtons-method '(:A ((10 -6) (-6 10)) :d ((4) (4)) :c 0) '((0) (-2)) nil))
+
+(defun example-conjugate-gradient ()
+  ""
+  (conjugate-gradient '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) '((1) (1))) ; p145
+  (terpri)
+  (conjugate-gradient '(:A ((2 1) (1 2)) :d ((0) (0)) :c 0) '((0.8) (-0.25))) ;  p141
+  (terpri)
+  (conjugate-gradient '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) '((1) (1))) ;  p149
+  (terpri)
+  (conjugate-gradient '(:A ((10 2) (2 4)) :d ((-2) (-1)) :c 0.25) nil) ; p149
+)
