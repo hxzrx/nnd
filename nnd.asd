@@ -30,4 +30,5 @@
                (:file "widrow-hoff")
                (:file "bp")
                (:file "bp-variations")
-               (:file "generalization")))
+               (:file "generalization")
+               (:file "dynamic")))
