@@ -350,5 +350,7 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
 (defun list-to-vector (lst)
   "conver a list of numbers to a column vector, if `lst is a number, return the number itself"
   (if (listp lst)
-      (transpose (list lst))
+      (if (= (length lst) 1)
+          (car lst)
+          (transpose (list lst)))
       lst))
