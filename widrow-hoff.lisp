@@ -178,22 +178,31 @@ consisting of the input signal at the current time and at delays of from 1 to R-
     ))
 
 
-;;p158, Chinese Edition. Converged to (-3.1910115e-4 1.0002948 3.1910115e-4)
-;;(adaline-training '(((1 -1 -1) -1) ((1 1 -1) 1)) 0.2 :init-weights '((0 0 0))  :turns-limit 100000 :threshold 0.000001)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; examles and exercises
 
-;;p168 P10.4, Chinese Edition. Converged to (0.0 1.0)
-;;(adaline-training '(((1 1) 1) ((1 -1) -1)) 0.25 :init-weights '((0 0)) :turns-limit 1000000 :threshold 0.000001)
+(defun example-page-158 ()
+       "p158, Chinese Edition. Converged to (-3.1910115e-4 1.0002948 3.1910115e-4)"
+       (adaline-training '(((1 -1 -1) -1) ((1 1 -1) 1)) 0.2 :init-weights '((0 0 0)) :turns-limit 100000 :threshold 0.000001))
 
-;;p171, Chinese Edition.
-;;(adaline-training '(((1 1) (-1 -1)) ((1 2) (-1 -1)) ((2 -1) (-1 1)) ((2 0) (-1 1)) ((-1 2) (1 -1)) ((-2 1) (1 -1)) ((-1 -1) (1 1)) ((-2 -2) (1 1))) 0.04 :init-weights '((-0.5948  -0.0523) (0.1667  -0.6667)) :init-bias '((0.0131) (0.1667)) :turns-limit 100000 :threshold 0.01)
+(defun example-10.4 ()
+  "page 168 P10.4, Chinese Edition. Converged to (0.0 1.0)"
+  (adaline-training '(((1 1) 1) ((1 -1) -1)) 0.25 :init-weights '((0 0)) :turns-limit 1000000 :threshold 0.000001))
 
-;;(adaline-training '(((1 1) (-1 -1)) ((1 2) (-1 -1)) ((2 -1) (-1 1)) ((2 0) (-1 1)) ((-1 2) (1 -1)) ((-2 1) (1 -1)) ((-1 -1) (1 1)) ((-2 -2) (1 1))) 0.04 :init-weights '((1 0) (0 1)) :init-bias '((1) (1)) :turns-limit 100000 :threshold 0.001) ;the first steps are correct, but the result is not, I have not found why.
+(defun example-10.8 ()
+  "p171, Chinese Edition."
+  (adaline-training '(((1 1) (-1 -1)) ((1 2) (-1 -1)) ((2 -1) (-1 1)) ((2 0) (-1 1)) ((-1 2) (1 -1)) ((-2 1) (1 -1)) ((-1 -1) (1 1)) ((-2 -2) (1 1))) 0.04 :init-weights '((-0.5948  -0.0523) (0.1667  -0.6667)) :init-bias '((0.0131) (0.1667)) :turns-limit 100000 :threshold 0.01))
 
-#+:ignore
-(adaline-training '(((1 -1 -1 -1 1 1 1 1 1 -1 -1 -1 -1 -1 -1 -1) 60)
-                    ((1 1 1 1 1 -1 1 1 1 -1 1 1 -1 -1 -1 -1) 0)
-                    ((1 1 1 1 1 1 -1 -1 1 -1 -1 -1 -1 -1 -1 -1) -60))
-                  0.03
-                  :init-weights '((0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
-                  :init-bias 0
-                  :turns-limit 1000000 :threshold 0.000001)
+(defun example-10.8+ ()
+  "the first steps are correct, but the result is not, I have not found why."
+  (adaline-training '(((1 1) (-1 -1)) ((1 2) (-1 -1)) ((2 -1) (-1 1)) ((2 0) (-1 1)) ((-1 2) (1 -1)) ((-2 1) (1 -1)) ((-1 -1) (1 1)) ((-2 -2) (1 1))) 0.04 :init-weights '((1 0) (0 1)) :init-bias '((1) (1)) :turns-limit 100000 :threshold 0.001))
+
+(defun example-10.9 ()
+  "page 172, Chinese edition"
+  (adaline-training '(((1 -1 -1 -1 1 1 1 1 1 -1 -1 -1 -1 -1 -1 -1) 60)
+                      ((1 1 1 1 1 -1 1 1 1 -1 1 1 -1 -1 -1 -1) 0)
+                      ((1 1 1 1 1 1 -1 -1 1 -1 -1 -1 -1 -1 -1 -1) -60))
+                    0.03
+                    :init-weights '((0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0))
+                    :init-bias 0
+                    :turns-limit 1000000 :threshold 0.000001))
