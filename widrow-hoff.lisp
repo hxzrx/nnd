@@ -17,6 +17,10 @@ consisting of the input signal at the current time and at delays of from 1 to R-
   "make an R dimensional tapped delay line, with the initial element with the default value"
   (make-instance 'tapped-delay-line :content (make-fixed-len-unsafe-fifo r-dimension :content init-element)))
 
+(defmethod get-tdl-contents (tdl)
+  "get the contents of a tapped delay line"
+  (get-contents (content tdl)))
+
 (defun input-tapped-delay-line (tapped-delay-line new-val)
   "new input to the tapped-delay-line"
   (addq (content tapped-delay-line) new-val))
@@ -24,6 +28,9 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 (defmethod outputs-tapped-delay-line (tapped-delay-line)
   "output column vector, fixed length"
   (transpose (list (reverse (cdr (unsafe-fifo-hd (content tapped-delay-line)))))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defgeneric adaline (input-vec weights-matrix bias-vec &key transfer)
   (:documentation
@@ -46,13 +53,6 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 (defmethod adaline-training-one-sample ((sample list) (weights list) (alpha number)
                                         &key (bias nil bias-supplied-p) (transfer #'purelin))
   "update weights and bias with one sample, sample has form (list input-vec label-vec), alpha is the learning rate"
-  ;;test (nnd::adaline-training-one-sample '((1 -1 1) (-1 -1)) '((1 1 -1) (-1 -1 1)) 0.01 :bias '((0) (0)))
-  ;;test (nnd::adaline-training-one-sample '((1 -1 1) (-1 -1)) '((1 1 -1) (-1 -1 1)) 0.01)
-  ;;test (nnd::adaline-training-one-sample '((1 -1 -1) -1) '((1 1 -1))  0.01 :bias 0)
-  ;;test (nnd::adaline-training-one-sample '((1 -1 -1) -1) '((1 1 -1))  0.01)
-  ;;(format t "~&sample: ~d~%" sample)
-  ;;(format t "~&weight: ~d~%" weights)
-  ;;(format t "~&bias  : ~d~%" bias)
   (let* ((sample-label (cadr sample))
          (label-size (when (listp sample-label) (matrix-size (transpose (list sample-label)))))
          (cur-bias (if (null bias)
@@ -98,8 +98,6 @@ consisting of the input signal at the current time and at delays of from 1 to R-
   "training one turn with all samples, return a cons of weights and bias.
    for simplicity, input and labels in each sample were a list of numbers, and they will transpose to column vectors later.
    eg. '( ((1 2 3) (1 1))  ((1 1 1) (0 0)) )"
-  ;;test (adaline-training-one-turn '(((1 -1 -1) -1) ((1 1 -1) 1)) nil 0.01)
-  ;;test (adaline-training-one-turn '(((1 -1 -1) -1) ((1 1 -1) 1)) nil 1/100 :bias 0)
   (let* ((in-num  (length (car (car samples))))
          (out-num (if (integerp (cadr (car samples))) 1 (length (cadr (car samples)))))
          (init-weights (if weights weights
@@ -180,6 +178,25 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; examles and exercises
+
+(defun demo-adaline-one-sample ()
+  "adaline-training-one-sample demo"
+  (print (adaline-training-one-sample '((1 -1 1) (-1 -1)) '((1 1 -1) (-1 -1 1)) 0.01 :bias '((0) (0))))
+  (terpri)
+  (print (adaline-training-one-sample '((1 -1 1) (-1 -1)) '((1 1 -1) (-1 -1 1)) 0.01))
+  (terpri)
+  (print (adaline-training-one-sample '((1 -1 -1) -1) '((1 1 -1))  0.01 :bias 0))
+  (terpri)
+  (print (adaline-training-one-sample '((1 -1 -1) -1) '((1 1 -1))  0.01))
+  (terpri))
+
+(defun demo-adaline-training-one-turn ()
+  "adaline-training-one-turn demo"
+  (print (adaline-training-one-turn '(((1 -1 -1) -1) ((1 1 -1) 1)) nil 0.01))
+  (terpri)
+  (print (adaline-training-one-turn '(((1 -1 -1) -1) ((1 1 -1) 1)) nil 1/100 :bias 0))
+  (terpri))
+
 
 (defun example-page-158 ()
        "p158, Chinese Edition. Converged to (-3.1910115e-4 1.0002948 3.1910115e-4)"
