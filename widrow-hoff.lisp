@@ -21,11 +21,11 @@ consisting of the input signal at the current time and at delays of from 1 to R-
   "get the contents of a tapped delay line"
   (get-contents (content tdl)))
 
-(defun input-tapped-delay-line (tapped-delay-line new-val)
+(defmethod input-tdl (tapped-delay-line new-val)
   "new input to the tapped-delay-line"
   (addq (content tapped-delay-line) new-val))
 
-(defmethod outputs-tapped-delay-line (tapped-delay-line)
+(defmethod outputs-tdl (tapped-delay-line)
   "output column vector, fixed length"
   (transpose (list (reverse (cdr (unsafe-fifo-hd (content tapped-delay-line)))))))
 
