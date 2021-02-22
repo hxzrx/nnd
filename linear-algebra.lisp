@@ -227,6 +227,12 @@
   "n * matrix"
   (matrix-multiple-scalar matrix n))
 
+(defmethod matrix-product ((matrix list) (zero (eql 0)))
+  "matrix * 0"
+  (loop for row in matrix
+        collect (loop for element in row
+                      collect 0)))
+
 (defmethod matrix-product ((m number) (n number))
   "m * n"
   (* m n))
