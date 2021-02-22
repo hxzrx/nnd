@@ -84,7 +84,7 @@
     ;;(declare (cons hd tl))
     (length (cdr hd))))
 
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defclass fixed-len-unsafe-fifo (unsafe-fifo)
   ((len :initarg :len
         :accessor len
@@ -107,3 +107,37 @@
     (declare (cons tl))
     (setf tl (setf (cdr tl) (list item)))
     ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defclass tdl ()
+  ((content :initarg :content
+            :accessor content
+            :type fixed-len-unsafe-fifo
+            :documentation "a fixed length fifo, when a new element comes, the oldest element should go out"))
+  (:documentation "Tapped Delay Line. The input signal enters from the left.
+At the output of the tapped delay line we have an R-dimensional vector,
+consisting of the input signal at the current time and at delays of from 1 to R-1 time steps"))
+
+(defun make-tdl (len &key (init-element 0))
+  "make an `len dimensional tapped delay line, with the initial element with the default value"
+  (make-instance 'tdl :content (make-fixed-len-unsafe-fifo len :content init-element)))
+
+(defmethod get-tdl-content ((tdl tdl))
+  "get the contents of a tapped delay line, the result is a list of the tdl's values"
+  (get-contents (content tdl)))
+
+(defmethod tdl-dimension ((tdl tdl))
+  "get the dimension of tdl"
+  (length (get-tdl-content tdl)))
+
+(defmethod tdl-length ((tdl tdl))
+  (tdl-dimension tdl))
+
+(defmethod add-tdl ((tdl tdl) new-val)
+  "new input to the tapped-delay-line"
+  (addq (content tdl) new-val))
+
+(defmethod tdl-to-vector ((tdl tdl))
+  "convert tdl's fifo to a column vector, it the length of fifo is 1, return the number"
+  (list-to-vector (get-tdl-content tdl)))
