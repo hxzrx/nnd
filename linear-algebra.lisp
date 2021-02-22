@@ -978,3 +978,27 @@ if min and max were nil, the elements will be real number in [0, 1]"))
 (defmethod matrix-translation ((translate-scale number) (matrix number))
   "number + number"
   (+ matrix translate-scale))
+
+
+(defgeneric kroncker-product (A B)
+  (:documentation "A ⊗ B, Kronecker product of A and B"))
+
+(defmethod kroncker-product ((A list) (B list))
+  "A ⊗ B"
+  (loop for A-row in A
+        append
+        (reduce #'make-augmented
+                (loop for element in A-row
+                      collect (matrix-product element B)))))
+
+(defmethod kroncker-product ((a number) (B list))
+  "number ⊗ matrix"
+  (matrix-product a B))
+
+(defmethod kroncker-product ((A list) (b number))
+  "matrix ⊗ number"
+  (matrix-product A b))
+
+(defmethod kroncker-product ((a number) (b number))
+  "number ⊗ number"
+  (* a b))
