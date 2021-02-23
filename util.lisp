@@ -354,3 +354,12 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
           (car lst)
           (transpose (list lst)))
       lst))
+
+(defun square-wave-generator (amplitude period)
+  "make an generator that produce discrete square wave, period should be an even integer"
+  (if (= (mod period 2) 1) (warn "the period should be an even number"))
+  (let ((start -1))
+    #'(lambda ()
+        (let ((i (incf start)))
+          (if (= (mod (- i (mod i (/ period 2))) 2) 0)
+              amplitude (* -1 amplitude))))))
