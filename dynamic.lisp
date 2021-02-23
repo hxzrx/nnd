@@ -34,19 +34,37 @@
 
 ;; DO NOT directly access lddn's slots
 (defmethod get-nth-network-input ((network lddn) (n integer))
-  ""
   (with-slots ((inputs network-inputs)) network
     (nth n inputs)))
 
 (defmethod get-nth-layer-bias ((network lddn) (n integer))
-  ""
   (with-slots ((bias biases)) network
     (nth n bias)))
 
+(defmethod set-nth-layer-bias ((network lddn) (n integer) (new-bias list))
+  (with-slots ((bias biases)) network
+    (setf (nth n bias) new-bias)))
+
 (defmethod get-nth-transfer-function ((network lddn) (n integer))
-  ""
   (with-slots ((transfer transfers)) network
     (nth n transfer)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; demos, examples, and exercises
@@ -54,37 +72,38 @@
 (defun FIR-demo ()
   "Finite Impulse Response Network Demonstration. Page 272, Chinese edition."
   (let ((tdl (make-tdl 3 :init-element 0 :from 0))
-        (weights '((1/3 1/3 1/3)))
+        (input-weight '((1/3 1/3 1/3)))
         (bias 0)
-        (transfer #'purelin))
+        (transfer #'purelin)
+        (network-output nil)
+        (square-wave (square-wave-generator 1 10)))
     (loop for i from 0 to 19
           do (progn
-               (if (= (mod (- i (mod i 5)) 2) 0) ;generate square-wave input signal
-                   (add-tdl tdl 1)
-                   (add-tdl tdl -1))
-               (let ((net-output (funcall transfer
-                                (matrix-add (matrix-product
-                                             weights
-                                             (tdl-to-vector tdl))
-                                            bias))))
-                 (format t "~&~d~d~,3f~%" i #\tab net-output))))))
+               (add-tdl tdl (funcall square-wave))
+               (setf network-output (funcall transfer
+                                             (reduce #'matrix-add
+                                                     (list (matrix-product input-weight (tdl-to-vector tdl))
+                                                           bias))))
+               (format t "~&~d~d~,3f~%" i #\tab network-output)))))
 
 
 (defun IIR-demo ()
   "Infinite Impulse Response Network Demonstration. Page 271 Chinese edition."
-  (let ((tdl (make-tdl 2 :init-element 0))
-        (weights '((1/2 1/2)))
+  (let ((tdl (make-tdl 1 :init-element 0))
+        (input-weight 1/2)
+        (layer-weight 1/2)
         (bias 0)
-        (transfer #'purelin))
+        (transfer #'purelin)
+        (network-input nil)
+        (network-output nil)
+        (square-wave (square-wave-generator 1 10)))
     (loop for i from 0 to 19
           do (progn
-               (if (= (mod (- i (mod i 5)) 2) 0) ;generate square-wave input signal
-                   (add-tdl tdl 1)
-                   (add-tdl tdl -1))
-               (let ((net-output (funcall transfer
-                                (matrix-add (matrix-product
-                                             weights
-                                             (tdl-to-vector tdl))
-                                            bias))))
-                 (add-tdl tdl net-output) ; the difference between fir-demo
-                 (format t "~&~d~d~,3f~%" i #\tab net-output))))))
+               (setf network-input (funcall square-wave))
+               (setf network-output (funcall transfer
+                                         (reduce #'matrix-add
+                                                 (list (matrix-product input-weight network-input)
+                                                       (matrix-product layer-weight (tdl-to-vector tdl))
+                                                       bias))))
+               (add-tdl tdl network-output) ; make a delay
+               (format t "~&~d~d~,3f~%" i #\tab network-output)))))
