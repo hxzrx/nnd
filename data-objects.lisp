@@ -109,23 +109,30 @@
     ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;Tapped Delay Line class
 
 (defclass tdl ()
   ((content :initarg :content
             :accessor content
             :type fixed-len-unsafe-fifo
-            :documentation "a fixed length fifo, when a new element comes, the oldest element should go out"))
+            :documentation "a fixed length fifo, when a new element comes, the oldest element should go out")
+   (delay-from :initarg :delay-from
+               :accessor delay-from
+               :type integer
+               :initform 0
+               :documentation "the delay series from `delay-from to length-1 of `content, if `delay-from=0, the first delay value is no delay, sometime it will delay from 1"))
   (:documentation "Tapped Delay Line. The input signal enters from the left.
 At the output of the tapped delay line we have an R-dimensional vector,
-consisting of the input signal at the current time and at delays of from 1 to R-1 time steps"))
+consisting of the input signal at the current time and at delays of from 0 to R-1 time steps, 0 meams no delay"))
 
-(defun make-tdl (len &key (init-element 0))
+(defun make-tdl (len &key (init-element 0) (from 0))
   "make an `len dimensional tapped delay line, with the initial element with the default value"
-  (make-instance 'tdl :content (make-fixed-len-unsafe-fifo len :content init-element)))
+  (make-instance 'tdl :content (make-fixed-len-unsafe-fifo len :content init-element)
+                      :delay-from from))
 
 (defmethod get-tdl-content ((tdl tdl))
-  "get the contents of a tapped delay line, the result is a list of the tdl's values"
-  (get-contents (content tdl)))
+  "get the contents of a tapped delay line, the result is a list of the tdl's values, only return the efficient content"
+  (nthcdr (delay-from tdl) (get-contents (content tdl))))
 
 (defmethod tdl-dimension ((tdl tdl))
   "get the dimension of tdl"
