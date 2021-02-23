@@ -2,40 +2,89 @@
 
 (in-package :nnd)
 
+(defclass lddn ()
+  ((network-inputs :initarg :network-input :accessor network-input :type list :initform nil
+                  :documentation "$p^l(t)$, the list of the lddn's input vectors")
+   (net-inputs :initarg :net-input :accessor net-input :type list :initform nil
+              :documentation "%n^m(t)%, net input for layer m")
+   (transfers :initarg :transfer :accessor transfer :type list :initform nil
+             :documentation "$f^m()$, the list of transfer functions for layer m")
+   (layer-output :initarg :layer-output :accessor layer-output :type list :initform nil
+                 :documentation "$a^m(t)$the output for layer m")
+   (input-weights :initarg :input-weights :accessor input-weights :type list :initform nil
+                  :documentation "$IW^{m,l}$, the input weight between input l and layer m")
+   (layer-weights :initarg :layer-weights :accessor layer-weights :type list :initform nil
+                  :documentation "$LW^{m,l}$, the layer weight between layer l and layer m")
+   (biases :initarg :biases :accessor biases :type list :initform nil
+           :documentation "$b^m$, the bias vector for layer m")
+   (delay-links :initarg :delay-links :accessor delay-links :type list :initform nil
+                :documentation "$DL_{m,l}$, the set of all delays in the tapped delay line between Layer l and Layer m")
+   (delay-inputs :initarg :delay-inputs :accessor delay-inputs :type list :initform nil
+                 :documentation"$DI_{m,l}$, the set of all delays in the tapped delay line between Input l and Layer m")
+   (network-input-indices :initarg :network-input-indices :accessor network-input-indices :type list :initform nil
+                          :documentation "$I_m$, the set of indices of input vectors that connect to layer m")
+   (links-forward :initarg :links-forward :accessor links-forward :type list :initform nil
+                  :documentation "$L_m^f$, the set of indices of layers that directly connect forward to layer m")
+   (links-backward :initarg :links-backward :accessor links-backward :type list :initform nil
+                   :documentation "$L_m^b$, the set of indices of layers that are directly connected backwards to layer m (or to which layer m connects forward) and that contain no delays in the connection")
+
+   )
+  (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
+
+
+;; DO NOT directly access lddn's slots
+(defmethod get-nth-network-input ((network lddn) (n integer))
+  ""
+  (with-slots ((inputs network-inputs)) network
+    (nth n inputs)))
+
+(defmethod get-nth-layer-bias ((network lddn) (n integer))
+  ""
+  (with-slots ((bias biases)) network
+    (nth n bias)))
+
+(defmethod get-nth-transfer-function ((network lddn) (n integer))
+  ""
+  (with-slots ((transfer transfers)) network
+    (nth n transfer)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; demos, examples, and exercises
+
 (defun FIR-demo ()
   "Finite Impulse Response Network Demonstration. Page 272, Chinese edition."
-  (let ((tdl (make-tapped-delay-line 3 :init-element 0))
+  (let ((tdl (make-tdl 3 :init-element 0 :from 0))
         (weights '((1/3 1/3 1/3)))
         (bias 0)
         (transfer #'purelin))
     (loop for i from 0 to 19
           do (progn
                (if (= (mod (- i (mod i 5)) 2) 0) ;generate square-wave input signal
-                   (input-tdl tdl 1)
-                   (input-tdl tdl -1))
+                   (add-tdl tdl 1)
+                   (add-tdl tdl -1))
                (let ((net-output (funcall transfer
                                 (matrix-add (matrix-product
                                              weights
-                                             (list-to-vector (get-tdl-contents tdl)))
+                                             (tdl-to-vector tdl))
                                             bias))))
                  (format t "~&~d~d~,3f~%" i #\tab net-output))))))
 
 
 (defun IIR-demo ()
-  "Infinite Impulse Response Network Demonstration"
-  (let ((tdl (make-tapped-delay-line 2 :init-element 0))
+  "Infinite Impulse Response Network Demonstration. Page 271 Chinese edition."
+  (let ((tdl (make-tdl 2 :init-element 0))
         (weights '((1/2 1/2)))
         (bias 0)
         (transfer #'purelin))
     (loop for i from 0 to 19
           do (progn
                (if (= (mod (- i (mod i 5)) 2) 0) ;generate square-wave input signal
-                   (input-tdl tdl 1)
-                   (input-tdl tdl -1))
+                   (add-tdl tdl 1)
+                   (add-tdl tdl -1))
                (let ((net-output (funcall transfer
                                 (matrix-add (matrix-product
                                              weights
-                                             (list-to-vector (get-tdl-contents tdl)))
+                                             (tdl-to-vector tdl))
                                             bias))))
-                 (input-tdl tdl net-output) ; the difference between fir-demo
+                 (add-tdl tdl net-output) ; the difference between fir-demo
                  (format t "~&~d~d~,3f~%" i #\tab net-output))))))
