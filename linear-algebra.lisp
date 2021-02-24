@@ -1008,3 +1008,12 @@ if min and max were nil, the elements will be real number in [0, 1]"))
 (defmethod kroncker-product ((a number) (b number))
   "number ⊗ number"
   (* a b))
+
+(defgeneric vec-operator (matrix)
+  (:documentation "transforms a matrix into a vector by stacking the columns of the matrix one underneath the other")
+  (:method ((matrix number)) matrix)
+  (:method ((matrix list))
+    (mapcar #'list (apply #'append (transpose matrix)))))
+
+(defun matrix-to-vector (matrix)
+  (vec-operator matrix))
