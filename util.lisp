@@ -346,14 +346,21 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
   "eg. (data-generator-uniform-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 -0.1 0.1 :type :random)"
   (data-generator-with-noise gen-fun min-vec max-vec gen-num #'rand-between noise-min noise-max :type type))
 
+(defun data-generator-uniform-noise (gen-fun min-vec max-vec gen-num noise-min noise-max &key type)
+"eg. (data-generator-uniform-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 -0.1 0.1 :type :random)"
+  (data-generator-with-noise gen-fun min-vec max-vec gen-num #'rand-between noise-min noise-max :type type))
 
-(defun list-to-vector (lst)
-  "conver a list of numbers to a column vector, if `lst is a number, return the number itself"
-  (if (listp lst)
-      (if (= (length lst) 1)
-          (car lst)
-          (transpose (list lst)))
-      lst))
+(defun noise-generator (noise-function noise-min noise-max)
+  "return a generator function that produce noise by `nose-fun, it can produce noise of type number or vector depending on the type of `noise-min"
+  #'(lambda () (funcall noise-function noise-min noise-max)))
+
+(defun gauss-noise-generator (noise-min noise-max)
+  "return a generator function that produce gauss noise between noise-min and noise-max"
+  (noise-generator #'gauss-random noise-min noise-max))
+
+(defun uniform-noise-generator (noise-min noise-max)
+  "return a generator function that produce uniform noise between noise-min and noise-max"
+  (noise-generator #'rand-between noise-min noise-max))
 
 (defun square-wave-generator (amplitude period)
   "make an generator that produce discrete square wave, period should be an even integer"
@@ -363,3 +370,12 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
         (let ((i (incf start)))
           (if (= (mod (- i (mod i (/ period 2))) 2) 0)
               amplitude (* -1 amplitude))))))
+
+
+(defun list-to-vector (lst)
+  "conver a list of numbers to a column vector, if `lst is a number, return the number itself"
+  (if (listp lst)
+      (if (= (length lst) 1)
+          (car lst)
+          (transpose (list lst)))
+      lst))
