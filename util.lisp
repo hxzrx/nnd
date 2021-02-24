@@ -274,14 +274,24 @@ def boxmullersampling(mu=0, sigma=1, size=1):
                (cos (* 2 pi v)))))
     (+ mu (* z sigma))))
 
-(defun gauss-random (&optional min max)
-  "Get a normal distribution random number between min and max. if min and max are nils, Gaussian random numbers form a standard
-normal distribution around 0.0d0"
+(defgeneric gauss-random (min max)
+  (:documentation "Get a normal distribution random number between min and max."))
+
+(defmethod gauss-random ((min real) (max real))
   (cond ((< min max)
          (alexandria:gaussian-random min max))
         ((> min max)
          (alexandria:gaussian-random max min))
         (t min))) ;if min=max, the algorithm will take a very long time, see the doc of alexandria
+
+(defmethod gauss-random ((vec1 list) (vec2 list))
+  "gauss random number between two column vetors, the rank of the two vectors should be equal"
+  (let ((rank1 (matrix-size vec1))
+        (rank2 (matrix-size vec2)))
+    (assert (equal rank1 rank2))
+    (loop for r from 0 below (car rank1)
+          collect (loop for c from 0 below (cdr rank1)
+                        collect (gauss-random (nth c (nth r vec1))  (nth c (nth r vec2)))))))
 
 (defgeneric rand-between (vec1 vec2)
   (:documentation "uniform random vector or random number between the two numbers"))
@@ -298,6 +308,7 @@ normal distribution around 0.0d0"
     (loop for r from 0 below (car rank1)
           collect (loop for c from 0 below (cdr rank1)
                         collect (rand-between (nth c (nth r vec1))  (nth c (nth r vec2)))))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun data-generator-accurate (gen-fun min-vec max-vec gen-num &key type)
@@ -371,6 +382,7 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
           (if (= (mod (- i (mod i (/ period 2))) 2) 0)
               amplitude (* -1 amplitude))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun list-to-vector (lst)
   "conver a list of numbers to a column vector, if `lst is a number, return the number itself"
