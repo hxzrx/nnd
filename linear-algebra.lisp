@@ -239,11 +239,11 @@
 
 (defun matrix-multi-product (&rest matrices)
   " m1 * m2 * ... * mn"
-  (reduce #'matrix-product matrices))
+  (reduce #'matrix-product (remove nil matrices)))
 
 (defun matrix-multi-add (&rest matrices)
   " m1 + m2 + ... + mn"
-  (reduce #'matrix-add matrices))
+  (reduce #'matrix-add (remove nil matrices)))
 
 
 ;;;; inner produce
