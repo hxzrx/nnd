@@ -131,8 +131,12 @@ consisting of the input signal at the current time and at delays of from 0 to R-
                       :delay-from from))
 
 (defmethod get-tdl-content ((tdl tdl))
-  "get the contents of a tapped delay line, the result is a list of the tdl's values, only return the efficient content"
-  (nthcdr (delay-from tdl) (get-contents (content tdl))))
+  "get the contents of a tapped delay line, the result is a list of the tdl's values, only return the efficient content. Note that the fifo queue is in inversed order, and this method returns normal order"
+  (reverse (nthcdr (delay-from tdl) (get-contents (content tdl)))))
+
+(defmethod add-tdl-content ((tdl tdl) item)
+  (with-slots ((content content)) tdl
+    (addq content item)))
 
 (defmethod tdl-dimension ((tdl tdl))
   "get the dimension of tdl"
