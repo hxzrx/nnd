@@ -237,6 +237,9 @@
   "m * n"
   (* m n))
 
+(defun matrix-multi-product (&rest matrices)
+  " m1 * m2 * ... mn"
+  (reduce #'matrix-product matrices))
 
 ;;;; inner produce
 (defgeneric inner-product (a b)
