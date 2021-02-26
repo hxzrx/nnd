@@ -123,7 +123,7 @@
                :documentation "the delay series from `delay-from to length-1 of `content, if `delay-from=0, the first delay value is no delay, sometime it will delay from 1"))
   (:documentation "Tapped Delay Line. The input signal enters from the left.
 At the output of the tapped delay line we have an R-dimensional vector,
-consisting of the input signal at the current time and at delays of from 0 to R-1 time steps, 0 meams no delay"))
+consisting of the input signal at the current time and at delays of from 1 to R-1 time steps, the 0th step meams no delay"))
 
 (defun make-tdl (len &key (init-element 0) (from 0))
   "make an `len dimensional tapped delay line, with the initial element with the default value"
