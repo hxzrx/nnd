@@ -391,3 +391,8 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
           (car lst)
           (transpose (list lst)))
       lst))
+
+(defmacro if-typep-let ((var test-form) type-test then-form &optional else-form)
+  "(if-typep-let (x #'+) #'functionp 'a-function 'not-a-function)"
+  `(let ((,var ,test-form))
+     (if (funcall , type-test ,var) ,then-form ,else-form)))
