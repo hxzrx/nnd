@@ -396,3 +396,7 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
   "(if-typep-let (x #'+) #'functionp 'a-function 'not-a-function)"
   `(let ((,var ,test-form))
      (if (funcall , type-test ,var) ,then-form ,else-form)))
+
+(defun find-function (symbol &optional (package :nnd))
+  "return a function with a symbol which has the same name as the returned function"
+  (symbol-function (find-symbol (string-upcase (symbol-name symbol)) package)))
