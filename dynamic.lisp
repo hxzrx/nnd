@@ -32,10 +32,11 @@
                   :documentation "$L_m^b$, a list of indices of layers that are directly connected backwards to this layer (or to which this layer connects forward) and that contain no delays in the connection")
    )
   (:documentation "A layer of a dynamic network.
-There are 3 types of slot,
+There are 3 types of slots,
 1. can be initialized by the current layer, these slots are id, neurons, bias, transfer, derivative-fun, link-to;
 2. can be initialized with the information outside of the current layer, these slots are network-inputs, network-input-weights, layer-inputs, layer-weights, link-forward, link-backward;
-3. initialized with default value, but updates in the network's propagation, these slots are net-input, neuro-output"))
+3. initialized with default value, but updates in the network's propagation, these slots are net-input, neuro-output
+the 2nd type of slots will be initialized as :after in the make-instance of lddn "))
 
 
 (defun make-lddn-layer (config)
@@ -54,9 +55,39 @@ so, the weights, u"
                  :link-to link-to
                  )))
 
+(defclass lddn ()
+  ((inputs :initarg :inputs :accessor inputs :type list :initform nil
+           :documentation "associate list about each input's id and dimension")
+   (input-to :initarg :input-to :accessor input-to :type list :initform nil
+             :documentation "associate list about each input's id and the list of layers' id it will input to")
+   (layers :initarg :layers :accessor layers :type list :initform nil
+           :documentation "a associate list of the layers of the network, the key of the associate list is the layer's id")
+   (raw-input-layers :initarg :raw-input-layers :accessor raw-input-layers :type list :initform nil
+                         :documentation "the id of the layers that receive network's raw input")
+   (final-output-layers :initarg :final-output-layers :accessor :final-output-layers :type list :initform nil
+                          :documentation "the id of the layers whose neuro-outputs will be used to compared with the target")
+   (network-output :initarg :network-output :accessor network-output :type list :initform nil
+                   :documentation "an associate list of output of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
+   (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
+   )
+  (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
+
+(defun make-lddn (config)
+  (let* ((input (gen-inputs-from-config (getf config :input)))
+         (input-to (gen-input-to-from-config (getf config :input)))
+         (layers (loop for layer-cfg in (getf config :layer)
+                       collect (make-lddn-layer layer-cfg)))
+         (raw-input-layers (apply #'union (loop for (id layer-ids) in input-to
+                                                collect layer-ids)))
+         (simul-order (getf config :order)))
+    (make-instance 'lddn :input input :input-to input-to :layers layers :raw-input-layers raw-input-layers :simul-order simul-order)
+
+  ))
+
 (defparameter lddn-config-p14.1
   (list :input (list (list :id 1 :dimension 3 :to-layer '(1))) ;the first input vector, 3*1 rank, input to layer 1
         :output (list 10) ;network output layer id
+        :order '(1 2 3 7 4 5 6 8 9 10)
         ;;transfer may refer the type or provide a function, if a function f was provided , the drivative should provide too
         :layer (list (list :id 1 :neurons 2 :transfer :logsig
                            ;;receive the first input with delay from 0, and the tdl has length 1
@@ -107,9 +138,19 @@ so, the weights, u"
 
 
 
-(defmethod make-layer ((layer lddn-layer) (config list))
-  "should use a config to initialize this instance"
-  )
+(defun gen-inputs-from-config (config)
+  "return and associate list about each input's id and dimension, this function is used to initialize the inputs slot of lddn.
+config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
+  (loop for cfg in config
+        collect (list (getf cfg :id) (getf cfg :dimension))))
+
+(defun gen-input-to-from-config (config)
+    "return and associate list about each input's id and which layers it will input to, this function is used to initialize the input-to slot of lddn.
+config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
+  (loop for cfg in config
+        collect (list (getf cfg :id) (getf cfg :to-layer))))
+
+
 
 (defmethod add-network-input-to-layer ((layer lddn-layer) raw-input)
   "add the network's raw input to the network-input's tdl"
@@ -173,22 +214,7 @@ so, the weights, u"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defclass lddn ()
-  ((inputs :initarg :inputs :accessor inputs :type list :initform nil
-           :documentation "associate list about each input's id and dimension")
-   (input-to :initarg :input-to :accessor input-to :type list :initform ni;
-             :documentation "associate list about each input's id and the list of layers' id it will input to")
-   (layers :initarg :layers :accessor layers :type list :initform nil
-           :documentation "a associate list of the layers of the network, the key of the associate list is the layer's id")
-   (raw-input-layers :initarg :raw-input-layers :accessor raw-input-layers :type list :initform nil
-                         :documentation "the id of the layers that receive network's raw input")
-   (final-output-layers :initarg :final-output-layers :accessor :final-output-layers :type list :initform nil
-                          :documentation "the id of the layers whose neuro-outputs will be used to compared with the target")
-   (network-output :initarg :network-output :accessor network-output :type list :initform nil
-                   :documentation "an associate list of output of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
-   (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
-   )
-  (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
+
 
 (defmethod get-layer ((lddn lddn) layer-id)
   "get the layer instance whose is is `layer-id"
