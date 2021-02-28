@@ -130,10 +130,11 @@
 At the output of the tapped delay line we have an R-dimensional vector,
 consisting of the input signal at the current time and at delays of from 1 to R-1 time steps, the 0th step meams no delay"))
 
-(defun make-tdl (len &key (init-element 0) (from 0))
+(defun make-tdl (len &key (init-element 0) (from 0) (tdl-type :forward))
   "make an `len dimensional tapped delay line, with the initial element with the default value"
   (make-instance 'tdl :content (make-fixed-len-unsafe-fifo len :content init-element)
-                      :from from))
+                      :from from
+                      :tdl-type tdl-type))
 
 (defmethod get-tdl-content ((tdl tdl))
   "get the contents of a tapped delay line, the result is a list of the tdl's values, only return the efficient content. Note that the fifo queue is in inversed order, and this method returns normal order"
