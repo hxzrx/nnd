@@ -402,13 +402,17 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
   (symbol-function (find-symbol (string-upcase (symbol-name symbol)) package)))
 
 (defun make-delay-from-config (delay-config)
-  "return a tdl instance with the config such as (list :from 1 :to 1 :dir :self)"
-  (let ((dir-type (getf delay-config :dir))
-        (from (getf delay-config :from))
-        (to (getf delay-config :to)))
-    (cond
-      ((eq dir-type :self) (make-tdl (1+ (- to from)) :init-element 0 :from (1- from)))
-      ((eq dir-type :backward) (make-tdl (1+ (- to from)) :init-element 0 :from (1- from)))
-      ((eq dir-type :foreward) (make-tdl (1+ to) :init-element 0 :from from))
-      (t (make-tdl 1 :init-element 0 :from 0)) ;direct forward link and no delay
-      )))
+  "return a tdl instance with the config such as (list :from 1 :to 1 :dir :self), see page 291, Chinese edition"
+  (flet ((tdl-len (from to)
+           (cond ((= from 0) (+ from to))
+                 ((= from 1) to)
+                 (t (error (formmat nil "Unconditioned TDL delay from: ~d" from))))))
+    (let ((dir-type (getf delay-config :dir))
+          (from (getf delay-config :from))
+          (to (getf delay-config :to)))
+      (cond
+        ((eq dir-type :self) (make-tdl (1+ (- to from)) :init-element 0 :from (1- from)))
+        ((eq dir-type :backward) (make-tdl (1+ (- to from)) :init-element 0 :from (1- from)))
+        ((eq dir-type :foreward) (make-tdl (1+ to) :init-element 0 :from from))
+        (t (make-tdl 1 :init-element 0 :from 0)) ;direct forward link and no delay
+        ))))
