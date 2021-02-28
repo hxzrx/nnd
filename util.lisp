@@ -401,15 +401,15 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
   "return a function with a symbol which has the same name as the returned function"
   (symbol-function (find-symbol (string-upcase (symbol-name symbol)) package)))
 
-(defun make-delay-from-config (delay-config)
+(defun make-delay-from-config (delay-config init-val)
   "Return a tdl instance with the config such as (list :from 1 :to 1 :dir :self), see page 291, Chinese edition.
 TDLs that are of the type self or backward and from zero delay are not considered yet, since they mean a(t) = f(a(t), ...).
 TDLs that are of the type forward should make to+1 length of tlds , even if they start from 1."
   (let ((dir-type (getf delay-config :dir))
         (from (getf delay-config :from))
         (to (getf delay-config :to)))
-    (cond ((eq dir-type :self)     (make-tdl to      :init-element 0 :from 0)) ;delay at least 1
-          ((eq dir-type :backward) (make-tdl to      :init-element 0 :from 0))
-          ((eq dir-type :foreward) (make-tdl (1+ to) :init-element 0 :from from))
-          (t                       (make-tdl 1       :init-element 0 :from 0))) ;direct forward link and no delay
+    (cond ((eq dir-type :self)     (make-tdl to      :init-element init-val :from 0    :tdl-type :self)) ;delay at least 1
+          ((eq dir-type :backward) (make-tdl to      :init-element init-val :from 0    :tdl-type :backward))
+          ((eq dir-type :foreward) (make-tdl (1+ to) :init-element init-val :from from :tdl-type :forward))
+          (t                       (make-tdl 1       :init-element init-val :from 0    :tdl-type :forward))) ;forward link, no delay
         ))
