@@ -7,7 +7,7 @@
   ((id :initarg :id :accessor id :type integer :documentation "the layer ID")
    (neurons :initarg :neurons :accessor neurons :type integer :documentation "num of neurons of this layer")
    (network-inputs :initarg :network-input :accessor network-input :type list :initform nil
-                   :documentation "$p^l$, an associate list of TDL about the inputs of the network, the key of the associate list should be according to the slot of input-weights, a layer can have multiple inputs, if it has no delays the length of the tdl should be <1> content and `delay-from <0>")
+                   :documentation "$p^l$, an associate list of TDL about the inputs of the network, the key of the associate list should be according to the slot of network-input-weights, a layer can have multiple inputs, if it has no delays the length of the tdl should be <1> content and `from <0>")
    (network-input-weights :initarg :network-input-weight :accessor network-input-weight :type list :initform nil
                   :documentation "$IW^{m,l}$, an associate list of TDL abouts the weights that receive the network's inputs, since a layer can receive multi-inputs, the key of the associate list is <l> that denote the l-th inputs of the network")
    (layer-inputs :initarg :layer-input :accessor layer-inputs :type list :initform nil
@@ -32,11 +32,12 @@
                   :documentation "$L_m^b$, a list of indices of layers that are directly connected backwards to this layer (or to which this layer connects forward) and that contain no delays in the connection")
    )
   (:documentation "A layer of a dynamic network.
-There are 3 types of slots,
-1. can be initialized by the current layer, these slots are id, neurons, bias, transfer, derivative-fun, link-to;
-2. can be initialized with the information outside of the current layer, these slots are network-inputs, network-input-weights, layer-inputs, layer-weights, link-forward, link-backward;
-3. initialized with default value, but updates in the network's propagation, these slots are net-input, neuro-output
-the 2nd type of slots will be initialized as :after in the make-instance of lddn "))
+There are 4 types of slots,
+1. can be initialized only by the current layer, these slots are id, neurons, bias, transfer, derivative-fun, link-to, layer-inputs, network-inputs;
+2. can be initialized by the currnt layer when the respected values are configured, or will initialize with random values by the help of the information outside of this layer, these slots are network-input-weights, layer-weights.
+3. should be initialized with the information outside of the current layer, these slots are link-forward, link-backward;
+4. initialized with default value, but updates in the network's propagation, these slots are net-input, neuro-output.
+The 2nd and 3rd types of slots will be initialized as :after in the make-instance of lddn "))
 
 
 (defun make-lddn-layer (config)
@@ -49,93 +50,46 @@ so, the weights, u"
          (transfer-config (getf config :transfer)) ;may be a keyword or a function
          (transfer (if-typep-let (f transfer-config) #'functionp f (find-function f)))
          (derivative (if-typep-let (f (getf config :derivative)) #'functionp f (derivative transfer-config)))
+         (network-input-config (getf config :network-input))
+         (network-input-weights (make-weights-from-config network-input-config)) ;initialize default weights when provided
+         (network-inputs (make-network-inputs-from-config network-input-config))
+         (layer-weights-config (getf config :layer-input))
+         (layer-weights (make-weights-from-config layer-weights-config)) ;initialize default weights when provided
+         (layer-inputs (make-layer-inputs-from-config layer-weights-config))
          (link-to (getf config :link-to)))
   (make-instance 'lddn-layer
                  :id id :neurons neurons :bias bias :transfer transfer :derivative-fun derivative
                  :link-to link-to
+                 :network-input-weights network-input-weights
+                 :network-inputs network-inputs
+                 :layer-weights layer-weights
+                 :layer-inputs layer-inputs
                  )))
 
-(defclass lddn ()
-  ((inputs :initarg :inputs :accessor inputs :type list :initform nil
-           :documentation "associate list about each input's id and dimension")
-   (input-to :initarg :input-to :accessor input-to :type list :initform nil
-             :documentation "associate list about each input's id and the list of layers' id it will input to")
-   (layers :initarg :layers :accessor layers :type list :initform nil
-           :documentation "a associate list of the layers of the network, the key of the associate list is the layer's id")
-   (raw-input-layers :initarg :raw-input-layers :accessor raw-input-layers :type list :initform nil
-                         :documentation "the id of the layers that receive network's raw input")
-   (final-output-layers :initarg :final-output-layers :accessor :final-output-layers :type list :initform nil
-                          :documentation "the id of the layers whose neuro-outputs will be used to compared with the target")
-   (network-output :initarg :network-output :accessor network-output :type list :initform nil
-                   :documentation "an associate list of output of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
-   (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
-   )
-  (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
+(defun make-weights-from-config (network-input-config)
+  "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
+if weights are in the config, add them to the tdl, else initialize the tdl with nil value.
+parameter: (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))"
+  (loop for plist in network-input-config
+        collect (list (getf plist :id)
+                      (progn
+                        (let ((tdl (make-delay-from-config (getf plist :delay) nil)))
+                          (alexandria:when-let (weights (getf plist :w))
+                            (dolist (w weights) (add-tdl tdl w))
+                            (when (= (from tdl) 1) ;forward and from 1, see function make-delay-from-config
+                              (add-tdl tdl nil))))))))
 
-(defun make-lddn (config)
-  (let* ((input (gen-inputs-from-config (getf config :input)))
-         (input-to (gen-input-to-from-config (getf config :input)))
-         (layers (loop for layer-cfg in (getf config :layer)
-                       collect (make-lddn-layer layer-cfg)))
-         (raw-input-layers (apply #'union (loop for (id layer-ids) in input-to
-                                                collect layer-ids)))
-         (simul-order (getf config :order)))
-    (make-instance 'lddn :input input :input-to input-to :layers layers :raw-input-layers raw-input-layers :simul-order simul-order)
+(defun make-network-inputs-from-config (network-input-config)
+  "see make-layer-weights-from-config, but initialize the tdls with 0 and do not need to provide a init value in the config"
+  (loop for plist in network-input-config
+        collect (list (getf plist :id)
+                      (make-delay-from-config (getf plist :delay) 0))))
 
-  ))
-
-(defparameter lddn-config-p14.1
-  (list :input (list (list :id 1 :dimension 3 :to-layer '(1))) ;the first input vector, 3*1 rank, input to layer 1
-        :output (list 10) ;network output layer id
-        :order '(1 2 3 7 4 5 6 8 9 10)
-        ;;transfer may refer the type or provide a function, if a function f was provided , the drivative should provide too
-        :layer (list (list :id 1 :neurons 2 :transfer :logsig
-                           ;;receive the first input with delay from 0, and the tdl has length 1
-                           ;;:w is a list of weights and should correspond to each delay, if :w is not provided, the weights will be generated randomly
-                           :network-input (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))
-                           :layer-input nil
-                           :bias '((0) (0))
-                           :link-to '(2))
-                     (list :id 2 :neurons 2 :transfer :logsig
-                           :layer-input (list (list :id 1 :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2))))
-                                              (list :id 2 :delay (list :from 1 :to 1 :dir :self)
-                                                    :w (list '((1/2 1/2) (1/2 1/2)))))
-                           :link-to '(2 3 6 7))
-                     (list :id 3 :neurons 2 :transfer :logsig
-                           :layer-input (list (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
-                           :link-to '(4))
-                     (list :id 4 :neurons 1 :transfer :logsig
-                           :layer-input (list (list :id 3 :delay (list :from 1 :to 1 :dir :foreward) :w (list '((1/3 1/3))))
-                                              (list :id 4 :delay (list :from 1 :to 1 :dir :self) :w (list '((1/3 1/3))))
-                                              (list :id 7 :w (list '((1/3 1/3)))))
-                           :link-to '(4 5 9))
-                     (list :id 5 :neurons 2 :transfer :logsig
-                           :layer-input (list (list :id 4 :w (list '((1/2) (1/2)))))
-                           :link-to '(6))
-                     (list :id 6 :neurons 4 :transfer :logsig
-                           :layer-input (list (list :id 5 :delay (list :from 0 :to 1 :dir :forward)
-                                                    :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2) (1/2 1/2))
-                                                             '((1/2 1/2) (1/2 1/2) (1/2 1/2) (1/2 1/2))))
-                                              (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3) (1/3 1/3 1/3) (1/3 1/3 1/3)))))
-                           :link-to '(10))
-                     (list :id 7 :neurons 2 :transfer :logsig
-                           :layer-input (list (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
-                           :link-to '(4 8))
-                     (list :id 8 :neurons 3 :transfer :logsig
-                           :layer-input (list (list :id 7 :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2)))))
-                           :link-to '(9))
-                     (list :id 9 :neurons 2 :transfer :logsig
-                           :layer-input (list (list :id 8 :delay (list :from 1 :to 1 :dir :forward)
-                                                    :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3))))
-                                              (list :id 4 :w (list '((1) (1)))))
-                           :link-to '(10))
-                     (list :id 10 :neurons 1 :transfer :purelin
-                           :layer-input (list (list :id 6 :w (list '((1) (1) (1) (1))))
-                                              (list :id 9 :w (list '((1/2 1/2)))))))))
-
-
-
-
+(defun make-layer-inputs-from-config (layer-input-config)
+  "see make-layer-weights-from-config, but initialize the tdls with 0 and do not need to provide a init value in the config"
+  (loop for plist in layer-input-config
+        collect (list (getf plist :id)
+                      (make-delay-from-config (getf plist :delay) 0))))
 
 
 (defun gen-inputs-from-config (config)
@@ -214,6 +168,87 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defclass lddn ()
+  ((inputs :initarg :inputs :accessor inputs :type list :initform nil
+           :documentation "associate list about each input's id and dimension")
+   (input-to :initarg :input-to :accessor input-to :type list :initform nil
+             :documentation "associate list about each input's id and the list of layers' id it will input to")
+   (layers :initarg :layers :accessor layers :type list :initform nil
+           :documentation "a associate list of the layers of the network, the key of the associate list is the layer's id")
+   (raw-input-layers :initarg :raw-input-layers :accessor raw-input-layers :type list :initform nil
+                         :documentation "the id of the layers that receive network's raw input")
+   (final-output-layers :initarg :final-output-layers :accessor :final-output-layers :type list :initform nil
+                          :documentation "the id of the layers whose neuro-outputs will be used to compared with the target")
+   (network-output :initarg :network-output :accessor network-output :type list :initform nil
+                   :documentation "an associate list of output of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
+   (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
+   )
+  (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
+
+
+(defun make-lddn (config)
+  "return an lddn object, network-output slot will be initialized in :after, as well some slots in the layers"
+  (let* ((input (gen-inputs-from-config (getf config :input)))
+         (input-to (gen-input-to-from-config (getf config :input)))
+         (layers (loop for layer-cfg in (getf config :layer)
+                       collect (make-lddn-layer layer-cfg)))
+         (raw-input-layers (apply #'union (loop for (id layer-ids) in input-to
+                                                collect layer-ids)))
+         (final-output-layers (getf config :output))
+         (simul-order (getf config :order)))
+    (make-instance 'lddn :input input :input-to input-to :layers layers :raw-input-layers raw-input-layers
+                         :final-output-layers final-output-layers :simul-order simul-order)
+
+  ))
+
+(defparameter lddn-config-p14.1
+  (list :input (list (list :id 1 :dimension 3 :to-layer '(1))) ;the first input vector, 3*1 rank, input to layer 1
+        :output (list 10) ;network output layer id
+        :order '(1 2 3 7 4 5 6 8 9 10)
+        ;;transfer may refer the type or provide a function, if a function f was provided , the drivative should provide too
+        :layer (list (list :id 1 :neurons 2 :transfer :logsig
+                           ;;receive the first input with delay from 0, and the tdl has length 1
+                           ;;:w is a list of weights and should correspond to each delay, if :w is not provided, the weights will be generated randomly
+                           :network-input (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))
+                           :layer-input nil
+                           :bias '((0) (0))
+                           :link-to '(2))
+                     (list :id 2 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 1 :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2))))
+                                              (list :id 2 :delay (list :from 1 :to 1 :dir :self)
+                                                    :w (list '((1/2 1/2) (1/2 1/2)))))
+                           :link-to '(2 3 6 7))
+                     (list :id 3 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
+                           :link-to '(4))
+                     (list :id 4 :neurons 1 :transfer :logsig
+                           :layer-input (list (list :id 3 :delay (list :from 1 :to 1 :dir :foreward) :w (list '((1/3 1/3))))
+                                              (list :id 4 :delay (list :from 1 :to 1 :dir :self) :w (list '((1/3 1/3))))
+                                              (list :id 7 :w (list '((1/3 1/3)))))
+                           :link-to '(4 5 9))
+                     (list :id 5 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 4 :w (list '((1/2) (1/2)))))
+                           :link-to '(6))
+                     (list :id 6 :neurons 4 :transfer :logsig
+                           :layer-input (list (list :id 5 :delay (list :from 0 :to 1 :dir :forward)
+                                                    :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2) (1/2 1/2))
+                                                             '((1/2 1/2) (1/2 1/2) (1/2 1/2) (1/2 1/2))))
+                                              (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3) (1/3 1/3 1/3) (1/3 1/3 1/3)))))
+                           :link-to '(10))
+                     (list :id 7 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
+                           :link-to '(4 8))
+                     (list :id 8 :neurons 3 :transfer :logsig
+                           :layer-input (list (list :id 7 :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2)))))
+                           :link-to '(9))
+                     (list :id 9 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 8 :delay (list :from 1 :to 1 :dir :forward)
+                                                    :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3))))
+                                              (list :id 4 :w (list '((1) (1)))))
+                           :link-to '(10))
+                     (list :id 10 :neurons 1 :transfer :purelin
+                           :layer-input (list (list :id 6 :w (list '((1) (1) (1) (1))))
+                                              (list :id 9 :w (list '((1/2 1/2)))))))))
 
 
 (defmethod get-layer ((lddn lddn) layer-id)
@@ -245,6 +280,21 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
       (calc-neuro-output! lddn layer))
     (loop for out-layer-id in output-layers ;collect network output result
           collect (list out-layer-id (get-neuro-output (get-layer lddn out-layer-id))))))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
