@@ -116,11 +116,16 @@
             :accessor content
             :type fixed-len-unsafe-fifo
             :documentation "a fixed length fifo, when a new element comes, the oldest element should go out")
-   (delay-from :initarg :delay-from
-               :accessor delay-from
-               :type integer
-               :initform 0
-               :documentation "the delay series start from, according to page 291(Chinese ed.), the delay can be from 0 or 1"))
+   (from :initarg :from
+         :accessor from
+         :type integer
+         :initform 0
+         :documentation "the series start from, according to page 291(Chinese ed.), it can be either 0 or 1, 0 means no delay")
+   (tdl-type :initarg :tdl-type
+         :accessor tdl-type
+         :type keyword
+         :initform :forward
+         :documentation "denote the type of this tdl, 3 types {:forward :backward :self}"))
   (:documentation "Tapped Delay Line. The input signal enters from the left.
 At the output of the tapped delay line we have an R-dimensional vector,
 consisting of the input signal at the current time and at delays of from 1 to R-1 time steps, the 0th step meams no delay"))
@@ -128,11 +133,11 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 (defun make-tdl (len &key (init-element 0) (from 0))
   "make an `len dimensional tapped delay line, with the initial element with the default value"
   (make-instance 'tdl :content (make-fixed-len-unsafe-fifo len :content init-element)
-                      :delay-from from))
+                      :from from))
 
 (defmethod get-tdl-content ((tdl tdl))
   "get the contents of a tapped delay line, the result is a list of the tdl's values, only return the efficient content. Note that the fifo queue is in inversed order, and this method returns normal order"
-  (reverse (nthcdr (delay-from tdl) (get-contents (content tdl)))))
+  (reverse  (get-contents (content tdl))))
 
 (defmethod add-tdl-content ((tdl tdl) item)
   (with-slots ((content content)) tdl
