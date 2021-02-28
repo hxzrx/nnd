@@ -120,7 +120,7 @@
                :accessor delay-from
                :type integer
                :initform 0
-               :documentation "the delay series from `delay-from to length-1 of `content, if `delay-from=0, the first delay value is no delay, sometime it will delay from 1"))
+               :documentation "the delay series start from, according to page 291(Chinese ed.), the delay can be from 0 or 1"))
   (:documentation "Tapped Delay Line. The input signal enters from the left.
 At the output of the tapped delay line we have an R-dimensional vector,
 consisting of the input signal at the current time and at delays of from 1 to R-1 time steps, the 0th step meams no delay"))
