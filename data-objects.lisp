@@ -158,3 +158,13 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 (defmethod tdl-to-vector ((tdl tdl))
   "convert tdl's fifo to a column vector, it the length of fifo is 1, return the number"
   (list-to-vector (get-tdl-content tdl)))
+
+(defmethod set-tdl-content ((tdl tdl) new-content-list)
+  "set the whole fixed length fifo's content of tdl"
+  (dolist (content new-content-list)
+    (add-tdl-content tdl content))
+  (when (= (from tdl) 1) ;only applicable for :forward type
+    (add-tdl-content tdl nil)))
+
+(defmethod get-tdl-type ((tdl tdl))
+  (tdl-type tdl))
