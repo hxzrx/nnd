@@ -413,3 +413,15 @@ TDLs that are of the type forward should make to+1 length of tlds , even if they
           ((eq dir-type :foreward) (make-tdl (1+ to) :init-element init-val :from from :tdl-type :forward))
           (t                       (make-tdl 1       :init-element init-val :from 0    :tdl-type :forward))) ;forward link, no delay
         ))
+
+(defmacro getf->> (nested-plist &rest keys)
+  "recursive applying getf to the final nalue of a nested property list
+eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
+  (if keys
+      `(getf->> (getf ,nested-plist ,(car keys)) ,@(cdr keys))
+      nested-plist))
+
+(defmacro ->> (arg &rest fn-forms)
+  (if fn-forms
+      `(->> (funcall ,(car fn-forms) ,arg) ,@(cdr fn-forms))
+      arg))
