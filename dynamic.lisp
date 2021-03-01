@@ -6,11 +6,11 @@
 (defclass lddn-layer ()
   ((id :initarg :id :accessor id :type integer :documentation "the layer ID")
    (neurons :initarg :neurons :accessor neurons :type integer :documentation "num of neurons of this layer")
-   (network-inputs :initarg :network-input :accessor network-input :type list :initform nil
+   (network-inputs :initarg :network-inputs :accessor network-inputs :type list :initform nil
                    :documentation "$p^l$, an associate list of TDL about the inputs of the network, the key of the associate list should be according to the slot of network-input-weights, a layer can have multiple inputs, if it has no delays the length of the tdl should be <1> content and `from <0>")
-   (network-input-weights :initarg :network-input-weight :accessor network-input-weight :type list :initform nil
+   (network-input-weights :initarg :network-input-weights :accessor network-input-weights :type list :initform nil
                   :documentation "$IW^{m,l}$, an associate list of TDL abouts the weights that receive the network's inputs, since a layer can receive multi-inputs, the key of the associate list is <l> that denote the l-th inputs of the network")
-   (layer-inputs :initarg :layer-input :accessor layer-inputs :type list :initform nil
+   (layer-inputs :initarg :layer-inputs :accessor layer-inputs :type list :initform nil
                  :documentation "an associate list of TDL abouts the inputs from the layers's inpts, the key of the associate should be according to the slot of layer-weights")
    (layer-weights :initarg :layer-weights :accessor layer-weights :type list :initform nil
                   :documentation "$LW^{m,l}$, an associate list of TDL abouts the weights that receive the layers' inputs, the key of the associate list is other layers' layer-id")
@@ -29,21 +29,20 @@
    (link-forward :initarg :link-forward :accessor link-forward :type list :initform nil
                :documentation "$L_m^f$, a list of id of layers that directly connect forward to this layer")
    (link-backward :initarg :link-backward :accessor link-backward :type list :initform nil
-                  :documentation "$L_m^b$, a list of indices of layers that are directly connected backwards to this layer (or to which this layer connects forward) and that contain no delays in the connection")
+                  :documentation "$L_m^b$, a list of indices of layers that are directly connected backwards to this layer (or to which this layer connects forward) and that contain no delays in the connection, this is a subset of `link-to but has no delays")
    )
   (:documentation "A layer of a dynamic network.
 There are 4 types of slots,
-1. can be initialized only by the current layer, these slots are id, neurons, bias, transfer, derivative-fun, link-to, layer-inputs, network-inputs;
+1. can be initialized only by the current layer, these slots are id, neurons, bias, transfer, derivative-fun, link-to, layer-inputs, network-inputs, link-forward;
 2. can be initialized by the currnt layer when the respected values are configured, or will initialize with random values by the help of the information outside of this layer, these slots are network-input-weights, layer-weights.
-3. should be initialized with the information outside of the current layer, these slots are link-forward, link-backward;
+3. should be initialized with the information outside of the current layer, these slots  link-backward;
 4. initialized with default value, but updates in the network's propagation, these slots are net-input, neuro-output.
 The 2nd and 3rd types of slots will be initialized as :after in the make-instance of lddn "))
 
 
 (defun make-lddn-layer (config)
   "this function should only be used in make-lddn, and it will return an lddn-layer instance from a config,
-this function will only initialize the slots that do not share data outside of the layer,
-so, the weights, u"
+this function will only initialize the slots that do not share data outside of the layer, these slots are described in the doc of lddn-layer class"
   (let* ((id (getf config :id))
          (neurons (getf config :neurons))
          (bias (alexandria:if-let (b (getf config :bias)) b (rand-matrix neurons 1 -0.5 0.5)))
@@ -56,6 +55,7 @@ so, the weights, u"
          (layer-weights-config (getf config :layer-input))
          (layer-weights (make-weights-from-config layer-weights-config)) ;initialize default weights when provided
          (layer-inputs (make-layer-inputs-from-config layer-weights-config))
+         (link-forward (loop for (id nil) in layer-weights collect id))
          (link-to (getf config :link-to)))
   (make-instance 'lddn-layer
                  :id id :neurons neurons :bias bias :transfer transfer :derivative-fun derivative
@@ -64,20 +64,22 @@ so, the weights, u"
                  :network-inputs network-inputs
                  :layer-weights layer-weights
                  :layer-inputs layer-inputs
+                 :link-forward link-forward
                  )))
 
-(defun make-weights-from-config (network-input-config)
+(defun make-weights-from-config (weights-config)
   "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
 if weights are in the config, add them to the tdl, else initialize the tdl with nil value.
 parameter: (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))"
-  (loop for plist in network-input-config
-        collect (list (getf plist :id)
-                      (progn
-                        (let ((tdl (make-delay-from-config (getf plist :delay) nil)))
-                          (alexandria:when-let (weights (getf plist :w))
-                            (dolist (w weights) (add-tdl tdl w))
-                            (when (= (from tdl) 1) ;forward and from 1, see function make-delay-from-config
-                              (add-tdl tdl nil))))))))
+  (when weights-config ;some weights, such as IWs or the 1st layer's LW, will not be avaliable, and should return nil
+    (loop for plist in weights-config
+          collect (list (getf plist :id)
+                        (progn
+                          (let ((tdl (make-delay-from-config (getf plist :delay) nil)))
+                            (alexandria:when-let (weights (getf plist :w))
+                              (dolist (w weights) (add-tdl tdl w))
+                              (when (= (from tdl) 1) ;forward and from 1, see function make-delay-from-config
+                                (add-tdl tdl nil)))))))))
 
 (defun make-network-inputs-from-config (network-input-config)
   "see make-layer-weights-from-config, but initialize the tdls with 0 and do not need to provide a init value in the config"
@@ -104,14 +106,15 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
   (loop for cfg in config
         collect (list (getf cfg :id) (getf cfg :to-layer))))
 
-
-
 (defmethod add-network-input-to-layer ((layer lddn-layer) raw-input)
   "add the network's raw input to the network-input's tdl"
   (with-slots ((input network-inputs)) layer
     (loop for (lth-in tdl) in input
           do (alexandria:when-let (in-vec (assoc lth-in raw-input))
                (add-tdl-content tdl (second in-vec))))))
+
+(defmethod get-layer-id ((layer lddn-layer))
+  (id layer))
 
 (defmethod get-neurons ((layer lddn-layer))
   (neurons layer))
@@ -140,6 +143,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 (defmethod set-neuro-output! ((layer lddn-layer) value)
   (setf (neuro-output layer) value))
 
+(defmethod set-link-backward! ((layer lddn-layer) layer-id-list)
+  (setf (link-backward layer) layer-id-list))
+
 (defmethod calc-layer-net-input ((layer lddn-layer))
   "calc the net output of layer m at time t, the equation is (14.1)"
   (matrix-multi-add ;will remove nil first
@@ -163,6 +169,16 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                                    collect (matrix-product each-delay-weight each-delay-input))))))
            (bias layer))))
 
+(defmethod layer-link-delay? ((layer-from lddn-layer) (layer-to lddn-layer))
+  "check if the layer input from `layer-from to `layer-to has non-ZERO delay, before calling this function, one should make sure that there is a direct link from `layer-from to `layer-to"
+  (let ((from-id (get-layer-id layer-from))
+        (to-id (get-layer-id layer-to)))
+    (if (null (find to-id (link-to layer-from)))
+        (warn "layer ~d has no link to layer ~d" (get-layer-id layer-from) (get-layer-id layer-to)))
+    (let ((tdl (get-layer-weight layer-to from-id)))
+      (if (and (eq (get-tdl-type tdl) :forward) (= (tdl-length tdl) 1)) ;see make-delay-from-config for delay definition
+          nil
+          t))))
 
 
 
@@ -186,20 +202,45 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
   (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
 
 
-(defun make-lddn (config)
+(defun make-lddn (&key config)
   "return an lddn object, network-output slot will be initialized in :after, as well some slots in the layers"
   (let* ((input (gen-inputs-from-config (getf config :input)))
+         ;;it's not necessarily be configured since is can be reduced from the layers, the reason is to make a more clearer config
          (input-to (gen-input-to-from-config (getf config :input)))
          (layers (loop for layer-cfg in (getf config :layer)
                        collect (make-lddn-layer layer-cfg)))
-         (raw-input-layers (apply #'union (loop for (id layer-ids) in input-to
-                                                collect layer-ids)))
+         (raw-input-layers (remove-duplicates (loop for (id layer-ids) in input-to
+                                                append layer-ids)))
          (final-output-layers (getf config :output))
          (simul-order (getf config :order)))
     (make-instance 'lddn :input input :input-to input-to :layers layers :raw-input-layers raw-input-layers
-                         :final-output-layers final-output-layers :simul-order simul-order)
+                         :final-output-layers final-output-layers :simul-order simul-order
+                         :config config)
+    ))
 
-  ))
+(defmethod initialize-instance :after ((lddn lddn) &key config  &allow-other-keys)
+  "initialize network-output slot of lddn,
+initizlize the layers' slots link-forward, link-backward, layer-weights, network-input-weights, bias"
+  (with-slots ((layers lddn)) lddn
+    (dolist (layer layers)
+      (with-slots ((IWs network-input-weights)
+                   (LWs layer-weights)
+                   (link-to link-to)) layer
+        ;;randomize the IWs when they were not configured
+        (loop for (input-id tdl) in IWs
+              do (when (null (getf->> config :layer (get-layer-id layer) :network-input :w)) ;see if the weight was configured
+                   (randomize-input-weights! lddn layer input-id)))
+        ;;randomize the LWs when they were not configured
+        (loop for (layer-id tdl) in LWs
+              do (when (null (getf->> config :layer (get-layer-id layer) :layer-input :w))
+                   (randomize-layer-weights! lddn layer layer-id)))
+        ;;set link-backward for each layer
+        (set-link-backward! layer (loop for id in link-to
+                                        when (layer-link-delay? layer (get-layer lddn id))
+                                          collect id))
+  ))))
+
+
 
 (defparameter lddn-config-p14.1
   (list :input (list (list :id 1 :dimension 3 :to-layer '(1))) ;the first input vector, 3*1 rank, input to layer 1
@@ -250,15 +291,52 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                            :layer-input (list (list :id 6 :w (list '((1) (1) (1) (1))))
                                               (list :id 9 :w (list '((1/2 1/2)))))))))
 
+(defparameter lddn-layer-config-p14.1
+  (first (getf lddn-config-p14.1 :layer)))
 
 (defmethod get-layer ((lddn lddn) layer-id)
   "get the layer instance whose is is `layer-id"
+  #+:ignore(with-slots ((layers layers)) lddn ; note an associate list
+             (second (assoc layer-id (layers lddn))))
   (with-slots ((layers layers)) lddn
-    (second (assoc layer-id (layers lddn)))))
+    (find layer-id layers :key #'get-layer-id)))
+
+(defmethod get-input-dimension ((lddn lddn) input-id)
+  (second (assoc (inputs lddn) input-id)))
 
 (defmethod get-layer-neurons ((lddn lddn) layer-id)
   "get the neurons num of the specified layer"
   (get-neurons (get-layer lddn layer-id)))
+
+(defmethod randomize-input-weights! ((lddn lddn) (layer lddn-layer) input-id)
+  "initialize the input weights as random matrices, this function is used as :after make-instance of lddn"
+  (with-slots ((weights-alist network-input-weights)
+               (neuron-num neurons)) layer
+    (loop for (id tdl) in weights-alist
+          do (with-slots ((c content)
+                          (f from)) tdl
+               (dotimes (i (- (tdl-length tdl) (from tdl)))
+                 (add-tdl-content tdl (rand-matrix neuron-num (get-input-dimension lddn id) -0.5 0.5)))
+               (dotimes (i (from tdl)) ;the content before `from will not be used and can be set to nil
+                 (add-tdl-content tdl nil))))))
+
+(defmethod randomize-layer-weights! ((lddn lddn) (layer lddn-layer) layer-id)
+  "initialize the input weights as random matrices, this function is used as :after make-instance of lddn"
+  (with-slots ((weights-alist layer-weights)
+               (neuron-num neurons)) layer
+    (loop for (id tdl) in weights-alist
+          do (with-slots ((c content)
+                          (f from)) tdl
+               (dotimes (i (- (tdl-length tdl) (from tdl)))
+                 (add-tdl-content tdl (rand-matrix neuron-num (get-layer-neurons lddn id) -0.5 0.5)))
+               (dotimes (i (from tdl)) ;the content before `from will not be used and can be set to nil
+                 (add-tdl-content tdl nil))))))
+
+
+
+
+
+
 
 (defmethod calc-neuro-output! ((lddn lddn) (layer lddn-layer))
   "calc the output of this layer, and send the result to the layers it connects to"
