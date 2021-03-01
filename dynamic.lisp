@@ -57,7 +57,7 @@ this function will only initialize the slots that do not share data outside of t
          (layer-inputs (make-layer-inputs-from-config layer-weights-config))
          (link-forward (loop for (id nil) in layer-weights collect id))
          (link-to (getf config :link-to)))
-  (make-instance 'lddn-layer
+    (make-instance 'lddn-layer
                  :id id :neurons neurons :bias bias :transfer transfer :derivative-fun derivative
                  :link-to link-to
                  :network-input-weights network-input-weights
@@ -79,7 +79,8 @@ parameter: (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))"
                             (alexandria:when-let (weights (getf plist :w))
                               (dolist (w weights) (add-tdl tdl w))
                               (when (= (from tdl) 1) ;forward and from 1, see function make-delay-from-config
-                                (add-tdl tdl nil)))))))))
+                                (add-tdl tdl nil)))
+                            tdl))))))
 
 (defun make-network-inputs-from-config (network-input-config)
   "see make-layer-weights-from-config, but initialize the tdls with 0 and do not need to provide a init value in the config"
@@ -196,15 +197,16 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
    (final-output-layers :initarg :final-output-layers :accessor :final-output-layers :type list :initform nil
                           :documentation "the id of the layers whose neuro-outputs will be used to compared with the target")
    (network-output :initarg :network-output :accessor network-output :type list :initform nil
-                   :documentation "an associate list of output of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
+                   :documentation "an associate list of output result of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
    (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
    )
   (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
 
 
 (defun make-lddn (&key config)
-  "return an lddn object, network-output slot will be initialized in :after, as well some slots in the layers"
-  (let* ((input (gen-inputs-from-config (getf config :input)))
+  "return an lddn object, network-output slot will be initialized in :after, as well as some slots of the layers"
+  ;;(make-lddn :config lddn-config-p14.1)
+  (let* ((inputs (gen-inputs-from-config (getf config :input)))
          ;;it's not necessarily be configured since is can be reduced from the layers, the reason is to make a more clearer config
          (input-to (gen-input-to-from-config (getf config :input)))
          (layers (loop for layer-cfg in (getf config :layer)
@@ -213,26 +215,40 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                                                 append layer-ids)))
          (final-output-layers (getf config :output))
          (simul-order (getf config :order)))
-    (make-instance 'lddn :input input :input-to input-to :layers layers :raw-input-layers raw-input-layers
-                         :final-output-layers final-output-layers :simul-order simul-order
+    (make-instance 'lddn :inputs inputs
+                         :input-to input-to
+                         :layers layers
+                         :raw-input-layers raw-input-layers
+                         :final-output-layers final-output-layers
+                         :simul-order simul-order
                          :config config)
     ))
 
 (defmethod initialize-instance :after ((lddn lddn) &key config  &allow-other-keys)
   "initialize network-output slot of lddn,
 initizlize the layers' slots link-forward, link-backward, layer-weights, network-input-weights, bias"
-  (with-slots ((layers lddn)) lddn
+  (with-slots ((layers layers)) lddn
     (dolist (layer layers)
       (with-slots ((IWs network-input-weights)
                    (LWs layer-weights)
                    (link-to link-to)) layer
         ;;randomize the IWs when they were not configured
         (loop for (input-id tdl) in IWs
-              do (when (null (getf->> config :layer (get-layer-id layer) :network-input :w)) ;see if the weight was configured
+              do (when (null (->> config ;see if the weight was configured
+                                  #'(lambda (cfg) (getf cfg :layer))
+                                  #'(lambda (cfg) (find (get-layer-id layer) cfg :key #'(lambda (x) (getf x :id))))
+                                  #'(lambda (cfg) (getf cfg :network-input))
+                                  #'(lambda (cfg) (find input-id cfg :key #'(lambda (x) (getf x :id))))
+                                  #'(lambda (cfg) (getf cfg :w))))
                    (randomize-input-weights! lddn layer input-id)))
         ;;randomize the LWs when they were not configured
         (loop for (layer-id tdl) in LWs
-              do (when (null (getf->> config :layer (get-layer-id layer) :layer-input :w))
+              do (when (null (->> config ;see if the weight was configured
+                                  #'(lambda (cfg) (getf cfg :layer))
+                                  #'(lambda (cfg) (find (get-layer-id layer) cfg :key #'(lambda (x) (getf x :id))))
+                                  #'(lambda (cfg) (getf cfg :layer-input))
+                                  #'(lambda (cfg) (find layer-id cfg :key #'(lambda (x) (getf x :id))))
+                                  #'(lambda (cfg) (getf cfg :w))))
                    (randomize-layer-weights! lddn layer layer-id)))
         ;;set link-backward for each layer
         (set-link-backward! layer (loop for id in link-to
