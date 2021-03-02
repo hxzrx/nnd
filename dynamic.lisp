@@ -67,9 +67,9 @@ this function will only initialize the slots that do not share data outside of t
                  :link-forward link-forward
                  )))
 
-(defmethod print-object ((layer lddn-layer) stream)
-  (print-unreadable-object (layer stream :type t)
-    (format stream "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d~%"
+(defmethod format-string ((layer lddn-layer))
+  "return a format string about the object"
+  (format nil "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d"
             (id layer)
             (neurons layer)
             (link-to layer)
@@ -79,8 +79,11 @@ this function will only initialize the slots that do not share data outside of t
             (alexandria:if-let (x (network-inputs layer)) (id-tdl-alist-format x) nil)
             (alexandria:if-let (x (network-input-weights layer)) (id-tdl-alist-format x) nil)
             (alexandria:if-let (x (layer-inputs layer)) (id-tdl-alist-format x) nil)
-            (alexandria:if-let (x (layer-weights layer)) (id-tdl-alist-format x) nil))))
+            (alexandria:if-let (x (layer-weights layer)) (id-tdl-alist-format x) nil)))
 
+(defmethod print-object ((layer lddn-layer) stream)
+  (print-unreadable-object (layer stream :type t)
+    (format stream "~d" (format-string layer))))
 
 (defun make-weights-from-config (weights-config)
   "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
