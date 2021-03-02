@@ -20,8 +20,8 @@
    (transfer :initarg :transfer :accessor transfer :type function :documentation "$f^m$, transfer function of this layer")
    (derivative-fun :initarg :derivative-fun :accessor derivative-fun :type function
                    :documentation "derivative function of the transfer function")
-   (neuro-output :initarg :neuro-output :accessor neuro-output :type (or list number) :initform nil
-                 :documentation "$a^m$, the neuro output of this layer")
+   (neuron-output :initarg :neuron-output :accessor neuron-output :type (or list number) :initform nil
+                 :documentation "$a^m$, the neuron output of this layer")
    #+:ignore(input-indices :initarg :input-indices :accessor inpyt-indices :type list :initform nil
                            :documentation "$I_m$, the list of indices of input vectors that connect this layer")
    (link-to :initarg :link-to :accessor link-to :type list :initform nil
@@ -71,15 +71,19 @@ this function will only initialize the slots that do not share data outside of t
   "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
 if weights are in the config, add them to the tdl, else initialize the tdl with nil value.
 parameter: (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))"
+  (format t "<make-weights-from-config>~%")
   (when weights-config ;some weights, such as IWs or the 1st layer's LW, will not be avaliable, and should return nil
     (loop for plist in weights-config
           collect (list (getf plist :id)
                         (progn
                           (let ((tdl (make-delay-from-config (getf plist :delay) nil)))
+                            (format t "tdl content, effective: ~d, fifo: ~d~%"
+                                    (get-tdl-effective-content tdl)
+                                    (get-tdl-fifo-content tdl))
                             (alexandria:when-let (weights (getf plist :w))
-                              (dolist (w weights) (add-tdl tdl w))
+                              (dolist (w weights) (add-tdl-content tdl w))
                               (when (= (from tdl) 1) ;forward and from 1, see function make-delay-from-config
-                                (add-tdl tdl nil)))
+                                (add-tdl-content tdl nil)))
                             tdl))))))
 
 (defun make-network-inputs-from-config (network-input-config)
@@ -94,7 +98,6 @@ parameter: (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))"
         collect (list (getf plist :id)
                       (make-delay-from-config (getf plist :delay) 0))))
 
-
 (defun gen-inputs-from-config (config)
   "return and associate list about each input's id and dimension, this function is used to initialize the inputs slot of lddn.
 config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
@@ -107,12 +110,17 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
   (loop for cfg in config
         collect (list (getf cfg :id) (getf cfg :to-layer))))
 
-(defmethod add-network-input-to-layer ((layer lddn-layer) raw-input)
+(defmethod add-network-input-to-layer ((layer lddn-layer) raw-input-alist)
   "add the network's raw input to the network-input's tdl"
+  (format t "~&<add-network-input-to-layer>~%")
+  (format t "~&raw input: ~d~%" raw-input-alist)
   (with-slots ((input network-inputs)) layer
     (loop for (lth-in tdl) in input
-          do (alexandria:when-let (in-vec (assoc lth-in raw-input))
-               (add-tdl-content tdl (second in-vec))))))
+          do (alexandria:when-let (in-vec (assoc lth-in raw-input-alist))
+               (format t "in-vec: ~d~%" in-vec)
+               (add-tdl-content tdl (second in-vec))
+               (format t "input tdl content: ~d~%~%" (get-tdl-effective-content tdl))
+               ))))
 
 (defmethod get-layer-id ((layer lddn-layer))
   (id layer))
@@ -138,37 +146,55 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 (defmethod get-layer-bias ((layer lddn-layer))
   (bias layer))
 
-(defmethod get-neuro-output ((layer lddn-layer))
-  (neuro-output layer))
+(defmethod get-neuron-output ((layer lddn-layer))
+  (neuron-output layer))
 
-(defmethod set-neuro-output! ((layer lddn-layer) value)
-  (setf (neuro-output layer) value))
+(defmethod set-neuron-output! ((layer lddn-layer) value)
+  (setf (neuron-output layer) value))
 
 (defmethod set-link-backward! ((layer lddn-layer) layer-id-list)
   (setf (link-backward layer) layer-id-list))
 
 (defmethod calc-layer-net-input ((layer lddn-layer))
   "calc the net output of layer m at time t, the equation is (14.1)"
+  (format t "~&<In calc-layer-net-input, layer id: ~d>~%" (get-layer-id layer))
   (matrix-multi-add ;will remove nil first
-          (list
-           (with-slots ((lf link-forward)
-                        (li layer-inputs)
-                        (lw layer-weights)) layer
-             (matrix-multi-add
-              (loop for l in lf
-                    collect (matrix-multi-add
-                             (loop for delay-input in (get-tdl-content (get-layer-input l li))
-                                   for delay-weight in (get-tdl-content (get-layer-weight l lw))
-                                   collect (matrix-product delay-weight delay-input))))))
-           (with-slots ((ni  network-inputs) ;may produce nil
-                        (niw network-input-weights)) layer
-             (matrix-multi-add
-              (loop for (l delay-input) in ni ;ni is an associate list about input id and it's tdl
-                    collect (matrix-multi-add
-                             (loop for each-delay-input in (get-tdl-content delay-input)
-                                   for each-delay-weight in (get-tdl-content (second (assoc l niw)))
-                                   collect (matrix-product each-delay-weight each-delay-input))))))
-           (bias layer))))
+   (list
+    (format t "~&begin to calc layer inputs part~%")
+    ;;layer inputs part
+    (with-slots ((lf link-forward)
+                 (li layer-inputs)
+                 (lw layer-weights)) layer
+      (format t "~&lf: ~d, li: ~d, lw: ~d~%" lf li lw)
+      (when (second (assoc 1 li))
+        (format t "~&layer input tdl content: ~d~%" (get-tdl-fifo-content (second (assoc 1 li)))))
+      (when (second (assoc 1 lw))
+        (format t "~&layer input weight tdl content: ~d~%" (get-tdl-fifo-content (second (assoc 1 lw)))))
+      (matrix-multi-add
+       (loop for l in lf
+             collect (matrix-multi-add
+                      (loop for delay-input in (get-tdl-effective-content (second (assoc l li)))
+                            for delay-weight in (get-tdl-effective-content (second (assoc l lw)))
+                            collect (progn
+                                      (format t "link forward layer: ~d, delay input: ~d, delay weight: ~d~%" l delay-input delay-weight)
+                                      (format t "weight tdl contents: ~d~%" (get-tdl-effective-content (second (assoc l lw))))
+                                      (matrix-product delay-weight delay-input)))))))
+    (format t "~&begin to calc network inputs part~%")
+    ;;network inputs part
+    (with-slots ((ni  network-inputs) ;may produce nil
+                 (niw network-input-weights)) layer
+      (format t "~&ni: ~d, niw: ~d~%" ni niw)
+      (matrix-multi-add
+       (loop for (l delay-input) in ni ;ni is an associate list about input id and it's tdl
+             collect (matrix-multi-add
+                      (loop for each-delay-input in (get-tdl-effective-content delay-input)
+                            for each-delay-weight in (get-tdl-effective-content (second (assoc l niw)))
+                            collect (progn
+                                      (format t "dinput: ~d, dweight: ~d~%" each-delay-input each-delay-weight)
+                                      (format t "input tdl content: ~d~%" (get-contents (content delay-input)))
+                                      (matrix-product each-delay-weight each-delay-input)))))))
+    (format t "~&begin to calc the bias part~%")
+    (bias layer))))
 
 (defmethod layer-link-delay? ((layer-from lddn-layer) (layer-to lddn-layer))
   "check if the layer input from `layer-from to `layer-to has non-ZERO delay, before calling this function, one should make sure that there is a direct link from `layer-from to `layer-to"
@@ -177,7 +203,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
     (if (null (find to-id (link-to layer-from)))
         (warn "layer ~d has no link to layer ~d" (get-layer-id layer-from) (get-layer-id layer-to)))
     (let ((tdl (get-layer-weight layer-to from-id)))
-      (if (and (eq (get-tdl-type tdl) :forward) (= (tdl-length tdl) 1)) ;see make-delay-from-config for delay definition
+      (if (and (eq (get-tdl-type tdl) :forward) (= (tdl-effective-length tdl) 1)) ;see make-delay-from-config for delay definition
           nil
           t))))
 
@@ -195,7 +221,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
    (raw-input-layers :initarg :raw-input-layers :accessor raw-input-layers :type list :initform nil
                          :documentation "the id of the layers that receive network's raw input")
    (final-output-layers :initarg :final-output-layers :accessor :final-output-layers :type list :initform nil
-                          :documentation "the id of the layers whose neuro-outputs will be used to compared with the target")
+                          :documentation "the id of the layers whose neuron-outputs will be used to compared with the target")
    (network-output :initarg :network-output :accessor network-output :type list :initform nil
                    :documentation "an associate list of output result of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
    (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
@@ -231,7 +257,9 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
     (dolist (layer layers)
       (with-slots ((IWs network-input-weights)
                    (LWs layer-weights)
-                   (link-to link-to)) layer
+                   (link-to link-to)
+                   (layer-inputs layer-inputs)
+                   (network-inputs network-inputs)) layer
         ;;randomize the IWs when they were not configured
         (loop for (input-id tdl) in IWs
               do (when (null (->> config ;see if the weight was configured
@@ -254,9 +282,87 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
         (set-link-backward! layer (loop for id in link-to
                                         when (layer-link-delay? layer (get-layer lddn id))
                                           collect id))
+        ;;set default tdl content of layer-input to zero vector
+        (loop for (layer-id tdl) in layer-inputs
+              do (dotimes (i (tdl-fifo-length tdl))
+                   (add-tdl-content tdl (make-zeros (get-neurons (get-layer lddn layer-id)) 1))))
+        ;;set default tdl content of network-input to zero vector
+        (loop for (input-id tdl) in network-inputs
+              do (dotimes (i (tdl-fifo-length tdl))
+                   (add-tdl-content tdl (make-zeros (get-input-dimension lddn input-id) 1))))
   ))))
 
+(defmethod get-layer ((lddn lddn) layer-id)
+  "get the layer instance whose is is `layer-id"
+  (with-slots ((layers layers)) lddn
+    (find layer-id layers :key #'get-layer-id)))
 
+(defmethod get-input-dimension ((lddn lddn) input-id)
+  (second (assoc input-id (inputs lddn))))
+
+(defmethod get-layer-neurons ((lddn lddn) layer-id)
+  "get the neurons num of the specified layer"
+  (get-neurons (get-layer lddn layer-id)))
+
+(defmethod randomize-input-weights! ((lddn lddn) (layer lddn-layer) input-id)
+  "initialize the input weights as random matrices, this function is used as :after make-instance of lddn"
+  (with-slots ((weights-alist network-input-weights)
+               (neuron-num neurons)) layer
+    (loop for (id tdl) in weights-alist
+          do (with-slots ((c content)
+                          (f from)) tdl
+               (dotimes (i (- (tdl-fifo-length tdl) (from tdl)))
+                 (add-tdl-content tdl (rand-matrix neuron-num (get-input-dimension lddn id) -0.5 0.5)))
+               (dotimes (i (from tdl)) ;the content before `from will not be used and can be set to nil
+                 (add-tdl-content tdl nil))))))
+
+(defmethod randomize-layer-weights! ((lddn lddn) (layer lddn-layer) layer-id)
+  "initialize the input weights as random matrices, this function is used as :after make-instance of lddn"
+  (with-slots ((weights-alist layer-weights)
+               (neuron-num neurons)) layer
+    (loop for (id tdl) in weights-alist
+          do (with-slots ((c content)
+                          (f from)) tdl
+               (dotimes (i (- (tdl-fifo-length tdl) (from tdl)))
+                 (add-tdl-content tdl (rand-matrix neuron-num (get-layer-neurons lddn id) -0.5 0.5)))
+               (dotimes (i (from tdl)) ;the content before `from will not be used and can be set to nil
+                 (add-tdl-content tdl nil))))))
+
+(defmethod calc-neuron-output! ((lddn lddn) (layer lddn-layer))
+  "calc the output of this layer, and send the result to the layers it connects to"
+  (format t "~&<In calc-neuron-output!>~%")
+  (let ((res (funcall (transfer layer) (calc-layer-net-input layer))))
+    (format t "~&transfer result: ~d~%" res)
+    (set-neuron-output! layer res)
+    (format t "the neuron output was setted~%")
+    (loop for send-to-id in (link-to layer)
+          do (progn
+               (format t "the neuron output <~d> is propagating forward to layer: ~d~%" res send-to-id)
+               (add-tdl-content (get-layer-input (get-layer lddn send-to-id) (get-layer-id layer))
+                                     res)))
+    ))
+
+(defmethod calc-lddn-output! ((lddn lddn) input-alist)
+  "calc the output of the lddn network providing a list of input vectors"
+  (with-slots ((layers layers)
+               (input-layers raw-input-layers)
+               (output-layers final-output-layers)
+               (simul-order simul-order)) lddn
+    (format t "in with-slots: input layers: ~d, output layers: ~d~%" input-layers output-layers)
+    (dolist (id input-layers) ;send input vector to the raw input layers
+      (add-network-input-to-layer (get-layer lddn id) input-alist))
+    (format t "input pushed!~%")
+    (dolist (layer-id simul-order)
+      (format t "~%calc neuron output for layer: ~d~%" layer-id)
+      (calc-neuron-output! lddn (get-layer lddn layer-id)))
+    (format t "all neuros' outputs completed!~%")
+    (loop for out-layer-id in output-layers ;collect network output result
+          collect (list out-layer-id (get-neuron-output (get-layer lddn out-layer-id))))))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; demos, examples, and exercises
 
 (defparameter lddn-config-p14.1
   (list :input (list (list :id 1 :dimension 3 :to-layer '(1))) ;the first input vector, 3*1 rank, input to layer 1
@@ -266,22 +372,22 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
         :layer (list (list :id 1 :neurons 2 :transfer :logsig
                            ;;receive the first input with delay from 0, and the tdl has length 1
                            ;;:w is a list of weights and should correspond to each delay, if :w is not provided, the weights will be generated randomly
-                           :network-input (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))
+                           :network-input (list (list :id 1 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
                            :layer-input nil
                            :bias '((0) (0))
                            :link-to '(2))
-                     (list :id 2 :neurons 2 :transfer :logsig
+                     (list :id 2 :neurons 3 :transfer :logsig
                            :layer-input (list (list :id 1 :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2))))
                                               (list :id 2 :delay (list :from 1 :to 1 :dir :self)
-                                                    :w (list '((1/2 1/2) (1/2 1/2)))))
+                                                    :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3) (1/3 1/3 1/3)))))
                            :link-to '(2 3 6 7))
                      (list :id 3 :neurons 2 :transfer :logsig
                            :layer-input (list (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
                            :link-to '(4))
                      (list :id 4 :neurons 1 :transfer :logsig
-                           :layer-input (list (list :id 3 :delay (list :from 1 :to 1 :dir :foreward) :w (list '((1/3 1/3))))
-                                              (list :id 4 :delay (list :from 1 :to 1 :dir :self) :w (list '((1/3 1/3))))
-                                              (list :id 7 :w (list '((1/3 1/3)))))
+                           :layer-input (list (list :id 3 :delay (list :from 1 :to 1 :dir :foreward) :w (list '((1/2 1/2))))
+                                              (list :id 4 :delay (list :from 1 :to 1 :dir :self) :w (list '((1))))
+                                              (list :id 7 :w (list '((1/2 1/2)))))
                            :link-to '(4 5 9))
                      (list :id 5 :neurons 2 :transfer :logsig
                            :layer-input (list (list :id 4 :w (list '((1/2) (1/2)))))
@@ -304,104 +410,31 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                                               (list :id 4 :w (list '((1) (1)))))
                            :link-to '(10))
                      (list :id 10 :neurons 1 :transfer :purelin
-                           :layer-input (list (list :id 6 :w (list '((1) (1) (1) (1))))
+                           :layer-input (list (list :id 6 :w (list '((1/4 1/4 1/4 1/4))))
                                               (list :id 9 :w (list '((1/2 1/2)))))))))
+
+(defparameter lddn-config-graph-14.2 ;page 272
+  (list :input (list (list :id 1 :dimension 1 :to-layer '(1)))
+        :output (list 1)
+        :order '(1)
+        :layer (list (list :id 1 :neurons 1 :transfer :purelin
+                           :bias 0
+                           :network-input (list (list :id 1 :delay (list :from 0 :to 2 :dir :forward)
+                                                      :w (list 1/3 1/3 1/3)))))))
+
+(defparameter lddn-config-graph-14.4 ;page 273
+  (list :input (list (list :id 1 :dimension 1 :to-layer '(1)))
+        :output (list 1)
+        :order '(1)
+        :layer (list (list :id 1 :neurons 1 :transfer :purelin
+                           :bias 0
+                           :network-input (list (list :id 1 :w (list 1/2)))
+                           :layer-input (list (list :id 1 :delay (list :from 1 :to 1 :dir :self) :w (list 1/2)))
+                           :link-to '(1)))))
+
 
 (defparameter lddn-layer-config-p14.1
   (first (getf lddn-config-p14.1 :layer)))
-
-(defmethod get-layer ((lddn lddn) layer-id)
-  "get the layer instance whose is is `layer-id"
-  #+:ignore(with-slots ((layers layers)) lddn ; note an associate list
-             (second (assoc layer-id (layers lddn))))
-  (with-slots ((layers layers)) lddn
-    (find layer-id layers :key #'get-layer-id)))
-
-(defmethod get-input-dimension ((lddn lddn) input-id)
-  (second (assoc (inputs lddn) input-id)))
-
-(defmethod get-layer-neurons ((lddn lddn) layer-id)
-  "get the neurons num of the specified layer"
-  (get-neurons (get-layer lddn layer-id)))
-
-(defmethod randomize-input-weights! ((lddn lddn) (layer lddn-layer) input-id)
-  "initialize the input weights as random matrices, this function is used as :after make-instance of lddn"
-  (with-slots ((weights-alist network-input-weights)
-               (neuron-num neurons)) layer
-    (loop for (id tdl) in weights-alist
-          do (with-slots ((c content)
-                          (f from)) tdl
-               (dotimes (i (- (tdl-length tdl) (from tdl)))
-                 (add-tdl-content tdl (rand-matrix neuron-num (get-input-dimension lddn id) -0.5 0.5)))
-               (dotimes (i (from tdl)) ;the content before `from will not be used and can be set to nil
-                 (add-tdl-content tdl nil))))))
-
-(defmethod randomize-layer-weights! ((lddn lddn) (layer lddn-layer) layer-id)
-  "initialize the input weights as random matrices, this function is used as :after make-instance of lddn"
-  (with-slots ((weights-alist layer-weights)
-               (neuron-num neurons)) layer
-    (loop for (id tdl) in weights-alist
-          do (with-slots ((c content)
-                          (f from)) tdl
-               (dotimes (i (- (tdl-length tdl) (from tdl)))
-                 (add-tdl-content tdl (rand-matrix neuron-num (get-layer-neurons lddn id) -0.5 0.5)))
-               (dotimes (i (from tdl)) ;the content before `from will not be used and can be set to nil
-                 (add-tdl-content tdl nil))))))
-
-
-
-
-
-
-
-(defmethod calc-neuro-output! ((lddn lddn) (layer lddn-layer))
-  "calc the output of this layer, and send the result to the layers it connects to"
-  (let ((res (funcall (transfer layer) (calc-layer-net-input layer))))
-    (with-slots ((layer-in layer-inputs)) lddn
-      (set-neuro-output layer res)
-      (loop for send-to-id in (link-to layer)
-            do (add-tdl-content (second (assoc send-to-id layer-in)) res))
-      res)))
-
-(defmethod calc-lddn-output! ((lddn lddn) input-list)
-  "calc the output of the lddn network providing a list of input vectors"
-  (with-slots ((layers layers)
-               (input-layers raw-input-layers)
-               (output-layers final-output-layers)) lddn
-    (dolist (id input-layers) ;send input vector to the raw input layers
-      (add-network-input-to-layer (get-layer lddn id) input-list))
-    (dolist (layer (sort layers #'< :key #'first)) ;calc the nuron outputs layer by layer
-      (calc-neuro-output! lddn layer))
-    (loop for out-layer-id in output-layers ;collect network output result
-          collect (list out-layer-id (get-neuro-output (get-layer lddn out-layer-id))))))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; demos, examples, and exercises
 
 (defun FIR-demo ()
   "Finite Impulse Response Network Demonstration. Page 272, Chinese edition."
@@ -413,13 +446,50 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
         (square-wave (square-wave-generator 1 10)))
     (loop for i from 0 to 19
           do (progn
-               (add-tdl tdl (funcall square-wave))
+               (add-tdl-content tdl (funcall square-wave))
                (setf network-output (funcall transfer
                                              (reduce #'matrix-add
                                                      (list (matrix-product input-weight (tdl-to-vector tdl))
                                                            bias))))
                (format t "~&~d~d~,3f~%" i #\tab network-output)))))
 
+(defun FIR-demo-lddn ()
+  "Finite Impulse Response Network Demonstration, using a lddn network"
+  (let* ((lddn (make-lddn :config lddn-config-graph-14.2))
+         (layer (get-layer lddn 1))
+         (input-tdl (second (assoc 1 (network-inputs layer))))
+         (input-weight-tdl (second (assoc 1 (network-input-weights layer))))
+         (square-wave (square-wave-generator 1 10)))
+    (loop for i from 0 to 19
+          do (progn
+               (let* ((p (funcall square-wave))
+                      (network-input (list (list 1 p)))
+                      (network-output (calc-lddn-output! lddn network-input)))
+                 (format t "~&Network input tdl effective content: ~d~%" (get-tdl-effective-content input-tdl))
+                 (format t "~&Network input tdl fifo content: ~d~%" (get-tdl-fifo-content input-tdl))
+                 (format t "~&Network input weight tdl content: ~d~%" (get-tdl-effective-content input-weight-tdl))
+                 (format t "~&SERIES: ~d, input: ~d, output: ~,3f~%" i p (cadar network-output)))))))
+
+(defun IIR-demo-lddn ()
+  "Infinite Impulse Response Network Demonstration, using a lddn network"
+  (let* ((lddn (make-lddn :config lddn-config-graph-14.4))
+         (layer (get-layer lddn 1))
+         (layer-input-tdl (second (assoc 1 (layer-inputs layer))))
+         (layer-weight-tdl (second (assoc 1 (layer-weights layer))))
+         (square-wave (square-wave-generator 1 10)))
+    (format t "~&Config: ~d~%" lddn-config-graph-14.4)
+    (format t "~&Initial, layer input tdl fifo length: ~d~%" (tdl-fifo-length layer-input-tdl))
+    (format t "~&Initial, layer input tdl fifo content: ~d~%" (get-tdl-fifo-content layer-input-tdl))
+    (format t "~&Initial, layer weight tdl fifo length: ~d~%" (tdl-fifo-length layer-weight-tdl))
+    (format t "~&Initial, layer weight tdl content: ~d~%" (get-tdl-fifo-content layer-weight-tdl))
+    (loop for i from 0 to 19
+          do (progn
+               (let* ((p (funcall square-wave))
+                      (network-input (list (list 1 p)))
+                      (network-output (calc-lddn-output! lddn network-input)))
+                 (format t "~&Layer input tdl fifo content: ~d~%" (get-tdl-fifo-content layer-input-tdl))
+                 (format t "~&Layer weight tdl content: ~d~%" (get-tdl-fifo-content layer-weight-tdl))
+                 (format t "~&SERIES: ~d, input: ~d, output: ~,3f~%" i p (cadar network-output)))))))
 
 (defun IIR-demo ()
   "Infinite Impulse Response Network Demonstration. Page 271 Chinese edition."
@@ -439,5 +509,13 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                                                  (list (matrix-product input-weight network-input)
                                                        (matrix-product layer-weight (tdl-to-vector tdl))
                                                        bias))))
-               (add-tdl tdl network-output) ; make a delay
+               (add-tdl-content tdl network-output) ; make a delay
                (format t "~&~d~d~,3f~%" i #\tab network-output)))))
+
+(defun test-output-p14.2()
+  "page 291"
+  (let* ((lddn (make-lddn :config lddn-config-p14.1))
+         (p '((1 ((1) (1) (1)))))
+         (output (calc-lddn-output! lddn p)))
+    (format t "~&lddn's inputs: ~d~%" (inputs lddn))
+    (format t "~d~%" output)))
