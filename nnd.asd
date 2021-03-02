@@ -9,7 +9,7 @@
   :author "He Xiang-zhi <xz.he@qq.com>"
   :maintainer "He Xiang-zhi <xz.he@qq.com>"
   :homepage "https://gitee.com/hxz/nnd"
-  :version 0.0.1
+  :version 0.1.1
   :license "MulanPSL-2.0"
   :depends-on (#:alexandria
                ;;#:bordeaux-threads       ; thread lib
