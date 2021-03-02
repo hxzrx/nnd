@@ -243,6 +243,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
    (network-output :initarg :network-output :accessor network-output :type list :initform nil
                    :documentation "an associate list of output result of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
    (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
+   (bp-order :initarg :bp-order :accessor bp-order :type list :initform nil :documentation "backpropagation order")
    )
   (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
 
@@ -258,13 +259,15 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (raw-input-layers (remove-duplicates (loop for (id layer-ids) in input-to
                                                 append layer-ids)))
          (final-output-layers (getf config :output))
-         (simul-order (getf config :order)))
+         (simul-order (getf config :order))
+         (bp-order (reverse simul-order)))
     (make-instance 'lddn :inputs inputs
                          :input-to input-to
                          :layers layers
                          :raw-input-layers raw-input-layers
                          :final-output-layers final-output-layers
                          :simul-order simul-order
+                         :bp-order bp-order
                          :config config)
     ))
 
@@ -309,6 +312,13 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
               do (dotimes (i (tdl-fifo-length tdl))
                    (add-tdl-content tdl (make-zeros (get-input-dimension lddn input-id) 1))))
   ))))
+
+(defmethod format-string ((lddn lddn))
+  )
+
+(defmethod print-object ((lddn lddn-layer) stream)
+  (print-unreadable-object (lddn stream :type t)
+    (format stream (format-string lddn))))
 
 (defmethod get-layer ((lddn lddn) layer-id)
   "get the layer instance whose is is `layer-id"
