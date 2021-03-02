@@ -448,3 +448,6 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
                         (from tdl)
                         (tdl-type tdl)))
    " ")))
+
+(defgeneric format-string (object)
+  (:documentation "return a string about the brief information about the object, and this string can be used in print-object method to get a pretty print"))
