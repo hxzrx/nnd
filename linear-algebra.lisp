@@ -125,22 +125,22 @@
 
 ;;;; matrix addition
 (defgeneric matrix-add (matrix1 matrix2)
-  (:documentation "matrix1 + matrix2"))
-
-(defmethod matrix-add ((matrix1 list) (matrix2 list))
-  "m1+m2"
-  (let ((size1 (lists-length-equal matrix1)) ;(rows . cols)
-        (size2 (lists-length-equal matrix2)))
-    (assert (and size1 size2))
-    (assert (and (= (car size1) (car size2))
-                 (= (cdr size1) (cdr size2))))
-    (loop for m1-row in matrix1
-          for m2-row in matrix2
-          collect (basic-list-list+ m1-row m2-row))))
-
-(defmethod matrix-add ((matrix1 number) (matrix2 number))
-  "number + number"
-  (+ matrix1 matrix2))
+  (:documentation "matrix1 + matrix2")
+  (:method ((matrix1 list) (matrix2 list))
+    "m1+m2"
+    (let ((size1 (lists-length-equal matrix1)) ;(rows . cols)
+          (size2 (lists-length-equal matrix2)))
+      (assert (and size1 size2))
+      (assert (and (= (car size1) (car size2))
+                   (= (cdr size1) (cdr size2))))
+      (if (equal size1 (cons 1 1))
+          (+ (caar matrix1) (caar matrix2))
+          (loop for m1-row in matrix1
+                for m2-row in matrix2
+                collect (basic-list-list+ m1-row m2-row)))))
+  (:method ((matrix1 number) (matrix2 number))
+    "number + number"
+    (+ matrix1 matrix2)))
 
 ;;;; matrix subtraction
 (defgeneric matrx-sub (matrix1 matrix2)
