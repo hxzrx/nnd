@@ -442,7 +442,7 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
   (apply #'concatenate 'string
    (list-interpolation
    (loop for (id tdl) in alist
-        collect (format nil "<~d: ~d, <~d:, tdl length: ~d, tdl from: ~d, type: ~d>/>"
+        collect (format nil "<~d: ~d  <~d:, tdl length: ~d, tdl from: ~d, type: ~d>/>"
                         id-cap id tdl-cap
                         (tdl-fifo-length tdl)
                         (from tdl)
