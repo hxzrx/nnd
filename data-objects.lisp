@@ -136,35 +136,54 @@ consisting of the input signal at the current time and at delays of from 1 to R-
                       :from from
                       :tdl-type tdl-type))
 
-(defmethod get-tdl-content ((tdl tdl))
-  "get the contents of a tapped delay line, the result is a list of the tdl's values, only return the efficient content. Note that the fifo queue is in inversed order, and this method returns normal order"
-  (reverse  (get-contents (content tdl))))
+(defmethod print-object ((tdl tdl) stream)
+  "pretty print"
+  (print-unreadable-object (tdl stream :type t)
+    (format t "<TDL content: ~d, from: ~d, type: ~d>" (get-tdl-fifo-content tdl) (from tdl) (tdl-type tdl))))
+
+(defmethod get-tdl-effective-content ((tdl tdl))
+  "get the contents of a tapped delay line, the result is a list of the tdl's values, only return the effective content (the items not before :from). Note that the fifo queue is in inversed order, and this method returns normal order"
+  (nthcdr (from tdl) (reverse (get-contents (content tdl)))))
+
+(defmethod get-tdl-fifo-content ((tdl tdl))
+  "the content of the fixed length fifo of the tdl"
+  (reverse (get-contents (content tdl))))
 
 (defmethod add-tdl-content ((tdl tdl) item)
   (with-slots ((content content)) tdl
     (addq content item)))
 
-(defmethod tdl-dimension ((tdl tdl))
-  "get the dimension of tdl"
-  (length (get-tdl-content tdl)))
+(defmethod tdl-effective-dimension ((tdl tdl))
+  "get the effective dimension of tdl"
+  (length (get-tdl-effective-content tdl)))
 
-(defmethod tdl-length ((tdl tdl))
-  (tdl-dimension tdl))
+(defmethod tdl-fifo-dimension ((tdl tdl))
+  "get the fifo dimension of tdl"
+  (length (get-tdl-fifo-content tdl)))
 
-(defmethod add-tdl ((tdl tdl) new-val)
-  "new input to the tapped-delay-line"
+(defmethod tdl-effective-length ((tdl tdl))
+  (tdl-effective-dimension tdl))
+
+(defmethod tdl-fifo-length ((tdl tdl))
+  (tdl-fifo-dimension tdl))
+
+#+:ignore (defmethod add-tdl ((tdl tdl) new-val)
+  "new input to the tapped-delay-line, duplicated of add-tdl-content"
   (addq (content tdl) new-val))
 
 (defmethod tdl-to-vector ((tdl tdl))
   "convert tdl's fifo to a column vector, it the length of fifo is 1, return the number"
-  (list-to-vector (get-tdl-content tdl)))
+  (list-to-vector (get-tdl-effective-content tdl)))
 
 (defmethod set-tdl-content ((tdl tdl) new-content-list)
   "set the whole fixed length fifo's content of tdl"
   (dolist (content new-content-list)
     (add-tdl-content tdl content))
-  (when (= (from tdl) 1) ;only applicable for :forward type
-    (add-tdl-content tdl nil)))
+  (dotimes (i (from tdl)) ;equal to the commented form below but will applicable for :from greater than 1
+    (add-tdl-content tdl nil))
+  #+:ignore(when (= (from tdl) 1) ;only applicable for :forward type
+             (add-tdl-content tdl nil))
+  )
 
 (defmethod get-tdl-type ((tdl tdl))
   (tdl-type tdl))
