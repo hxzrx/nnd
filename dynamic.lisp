@@ -2,6 +2,8 @@
 
 (in-package :nnd)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; class definition and initializing
 
 (defclass lddn-layer ()
   ((id :initarg :id :accessor id :type integer :documentation "the layer ID")
@@ -39,7 +41,6 @@ There are 4 types of slots,
 4. initialized with default value, but updates in the network's propagation, these slots are net-input, neuro-output.
 The 2nd and 3rd types of slots will be initialized as :after in the make-instance of lddn "))
 
-
 (defun make-lddn-layer (config)
   "this function should only be used in make-lddn, and it will return an lddn-layer instance from a config,
 this function will only initialize the slots that do not share data outside of the layer, these slots are described in the doc of lddn-layer class"
@@ -67,6 +68,9 @@ this function will only initialize the slots that do not share data outside of t
                  :link-forward link-forward
                  )))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; pretty print
+
 (defmethod format-string ((layer lddn-layer))
   "return a format string about the object"
   (format nil "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d"
@@ -84,6 +88,8 @@ this function will only initialize the slots that do not share data outside of t
 (defmethod print-object ((layer lddn-layer) stream)
   (print-unreadable-object (layer stream :type t)
     (format stream "~d" (format-string layer))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun make-weights-from-config (weights-config)
   "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
@@ -228,6 +234,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; class definition and initializing
 
 (defclass lddn ()
   ((inputs :initarg :inputs :accessor inputs :type list :initform nil
@@ -238,7 +245,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
            :documentation "a associate list of the layers of the network, the key of the associate list is the layer's id")
    (raw-input-layers :initarg :raw-input-layers :accessor raw-input-layers :type list :initform nil
                          :documentation "the id of the layers that receive network's raw input")
-   (final-output-layers :initarg :final-output-layers :accessor :final-output-layers :type list :initform nil
+   (final-output-layers :initarg :final-output-layers :accessor final-output-layers :type list :initform nil
                           :documentation "the id of the layers whose neuron-outputs will be used to compared with the target")
    (network-output :initarg :network-output :accessor network-output :type list :initform nil
                    :documentation "an associate list of output result of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
@@ -246,7 +253,6 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
    (bp-order :initarg :bp-order :accessor bp-order :type list :initform nil :documentation "backpropagation order")
    )
   (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
-
 
 (defun make-lddn (&key config)
   "return an lddn object, network-output slot will be initialized in :after, as well as some slots of the layers"
@@ -311,14 +317,54 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
         (loop for (input-id tdl) in network-inputs
               do (dotimes (i (tdl-fifo-length tdl))
                    (add-tdl-content tdl (make-zeros (get-input-dimension lddn input-id) 1))))
-  ))))
+        ))))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; pretty print lddn object
 (defmethod format-string ((lddn lddn))
-  )
+  (with-slots ((inputs inputs)
+               (input-to input-to)
+               (layers layers)
+               (raw-input-layers raw-input-layers)
+               (final-output-layers final-output-layers)
+               (simul-order simul-order)
+               (bp-order bp-order)) lddn
+  (format nil "Layers: ~d~%Inputs: ~d~%Input to layers: ~d~%Raw input layers: ~d~%Network output layers: ~d~%Simulation order: ~d~%Backpropagation order: ~d~%Layers:~&--------~&~d~&--------"
+          (length simul-order)
+          (format-string-inputs inputs)
+          (format-string-input-to input-to)
+          (format nil "~{~d ~}" raw-input-layers)
+          (format nil "~{~d ~}" final-output-layers)
+          (format nil "~{~d ~}" simul-order)
+          (format nil "~{~d ~}" bp-order)
+          (apply #'concatenate 'string
+                 (list-interpolation
+                  (loop for layer in layers
+                        collect (format-string layer))
+                  (concatenate 'string  (string #\newline) "----" (string #\newline)))))))
 
-(defmethod print-object ((lddn lddn-layer) stream)
+(defmethod format-string-inputs (input-list)
+  (apply #'concatenate 'string
+         (cons "Network inputs: "
+               (list-interpolation
+                (loop for (id dimension) in input-list
+                      collect (format nil "<id: ~d, dimension: ~d>" id dimension))
+                " "))))
+
+(defmethod format-string-input-to (input-to-list)
+  (apply #'concatenate 'string
+         (cons "Network input to layers: "
+               (list-interpolation
+                (loop for (id to-list) in input-to-list
+                      collect (format nil "<id: ~d, input to: ~{~d ~}>" id to-list))
+                " "))))
+
+(defmethod print-object ((lddn lddn) stream)
   (print-unreadable-object (lddn stream :type t)
-    (format stream (format-string lddn))))
+    (format stream "~d" (format-string lddn))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmethod get-layer ((lddn lddn) layer-id)
   "get the layer instance whose is is `layer-id"
@@ -524,10 +570,13 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                (add-tdl-content tdl network-output) ; make a delay
                (format t "~&~d~d~,3f~%" i #\tab network-output)))))
 
-(defun test-output-p14.2()
+(defun test-output-p14.2 ()
   "page 291"
   (let* ((lddn (make-lddn :config lddn-config-p14.1))
          (p '((1 ((1) (1) (1)))))
          (output (calc-lddn-output! lddn p)))
     (format t "~&lddn's inputs: ~d~%" (inputs lddn))
+    (format t "~&input-to: ~d~%" (input-to lddn))
+    (format t "~&raw-input-layers: ~d~%" (raw-input-layers lddn))
+    (format t "~&final-output-layers: ~d~%" (final-output-layers lddn))
     (format t "~d~%" output)))
