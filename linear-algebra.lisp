@@ -241,9 +241,14 @@
   " m1 * m2 * ... * mn"
   (reduce #'matrix-product (remove nil matrices)))
 
-(defun matrix-multi-add (&rest matrices)
-  " m1 + m2 + ... + mn"
-  (reduce #'matrix-add (remove nil matrices)))
+(defun matrix-multi-add (matrices)
+  "m1 + m2 + ... + mn, if the input is nil, this function will return nil"
+  (format t "~&<matrix-multi-add>~%")
+  (format t "~&matrices: ~d ~%" matrices)
+  (alexandria:when-let (matrices-removed-nil (remove nil matrices))
+    (reduce #'matrix-add matrices-removed-nil))
+  ;(format t "~&<matrix-multi-add exit>~%")
+  )
 
 
 ;;;; inner produce
@@ -510,15 +515,16 @@
 
 ;;;; construct a matrix with all zero elements
 (defgeneric make-zeros (m &optional n)
-  (:documentation "return a matrix which elements are all 0's. If n is nil, return a row vector such as '((0 0 0))"))
-
-(defmethod make-zeros ((m integer) &optional n)
-  "return a full zero matrix"
-  (if (null n)
-      (list (loop for i below m collect 0))
-      (loop for row below m
-            collect (loop for col below n
-                          collect 0))))
+  (:documentation "return a matrix which elements are all 0's. If n is nil, return a column vector such as '((0) (0) (0))")
+  (:method ((m integer) &optional (n 1))
+    "return a full zero matrix"
+    (loop for row below m
+          collect (loop for col below n
+                        collect 0)))
+  (:method ((m (eql 1)) &optional (n 1))
+    (if (eq n 1) 0 (loop for row below m
+                         collect (loop for col below n
+                                       collect 0)))))
 
 (defgeneric matrix-zeros-p (matrix)
   (:documentation "check if the matrix's elemets are all zeros"))
