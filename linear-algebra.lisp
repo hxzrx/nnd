@@ -138,48 +138,59 @@
           (loop for m1-row in matrix1
                 for m2-row in matrix2
                 collect (basic-list-list+ m1-row m2-row)))))
-  (:method ((matrix1 number) (matrix2 number))
+  (:method ((m number) (n number))
     "number + number"
-    (+ matrix1 matrix2)))
+    (+ m n))
+  (:method ((matrix list) (n number))
+    " '((m)) + n, only for 1 by 1 matrix"
+    (assert (equal (matrix-size matrix) (cons 1 1)))
+    (+ (caar matrix) n))
+  (:method ((n number) (matrix list))
+    " n + '((m)), only for 1 by 1 matrix"
+    (matrix-add matrix n)))
 
 ;;;; matrix subtraction
-(defgeneric matrx-sub (matrix1 matrix2)
-  (:documentation "m1 - m2"))
-
-(defmethod matrix-sub ((matrix1 list) (matrix2 list))
-  "m1-m2"
-  (let ((size1 (lists-length-equal matrix1))
-        (size2 (lists-length-equal matrix2)))
-    (assert (and size1 size2))
-    (assert (and (= (car size1) (car size2))
-                 (= (cdr size1) (cdr size2))))
-    (loop for i in matrix1
-          for j in matrix2
-          collect (basic-list-list- i j))))
-
-(defmethod matrix-sub ((matrix1 number) (matrix2 number))
-  "mnumber - number"
-  (- matrix1 matrix2))
+(defgeneric matrix-sub (matrix1 matrix2)
+  (:documentation "m1 - m2")
+  (:method ((matrix1 list) (matrix2 list))
+    "m1-m2"
+    (let ((size1 (lists-length-equal matrix1))
+          (size2 (lists-length-equal matrix2)))
+      (assert (and size1 size2))
+      (assert (and (= (car size1) (car size2))
+                   (= (cdr size1) (cdr size2))))
+      (if (equal size1 (cons 1 1))
+          (- (caar matrix1) (caar matrix2))
+          (loop for i in matrix1
+                for j in matrix2
+                collect (basic-list-list- i j)))))
+  (:method ((matrix1 number) (matrix2 number))
+    "mnumber - number"
+    (- matrix1 matrix2))
+  (:method ((matrix list) (n number))
+    "only for 1 by 1 matrix"
+    (assert (equal (matrix-size matrix) (cons 1 1)))
+    (- (caar matrix) n))
+  (:method ((n number) (matrix list))
+    (assert (equal (matrix-size matrix) (cons 1 1)))
+    (matrix-sub matrix n)))
 
 ;;;; matrix multiply a scalar
 (defgeneric matrix-multiple-scalar (matrix n)
-  (:documentation " matrix * number"))
-
-(defmethod matrix-multiple-scalar ((matrix list) (n number))
-  "matrix * number"
-  (loop for row in matrix
-        collect
-        (basic-list-scalar* row n)))
-
-(defmethod matrix-multiple-scalar ((n number) (matrix list))
-  "number * matrix"
-  (loop for row in matrix
-        collect
-        (basic-list-scalar* row n)))
-
-(defmethod matrix-multiple-scalar ((matrix number) (n number))
-  "number * number"
-  (* matrix n))
+  (:documentation " matrix * number")
+  (:method ((matrix list) (n number))
+    "matrix * number"
+    (if (equal (matrix-size matrix) (cons 1 1))
+        (* (caar matrix) n)
+        (loop for row in matrix
+              collect
+              (basic-list-scalar* row n))))
+  (:method ((n number) (matrix list))
+    "number * matrix"
+    (matrix-multiple-scalar matrix n))
+  (:method ((matrix number) (n number))
+    "number * number"
+    (* matrix n)))
 
 ;;;; matrix divide a scalar
 (defgeneric matrix-divide-scalar (matrix n)
@@ -205,37 +216,32 @@
   (basic-list-list* (car col-vec) (car row-vec)))
 
 (defgeneric matrix-product (matrix1 matrix2)
-  (:documentation "product of two matrix matrix1 and matrix2"))
-
-(defmethod matrix-product ((matrix1 list) (matrix2 list))
-  "matrix product: m1 * m2"
-  (let ((size1 (lists-length-equal matrix1))
-        (size2 (lists-length-equal matrix2)))
-    (assert (and size1 size2))
-    (assert (= (cdr size1) (car size2)))
-    (if (and (= (car size1) 1) (= (cdr size2) 1))
-        (inner-product matrix1 (transpose matrix2))
-        (loop for row in matrix1
-              collect (loop for col in (transpose matrix2)
-                            collect (basic-list-inner-product row col))))))
-
-(defmethod matrix-product ((matrix list) (n number))
-  "matrix * n"
-  (matrix-multiple-scalar matrix n))
-
-(defmethod matrix-product ((n number) (matrix list))
-  "n * matrix"
-  (matrix-multiple-scalar matrix n))
-
-(defmethod matrix-product ((matrix list) (zero (eql 0)))
-  "matrix * 0"
-  (loop for row in matrix
-        collect (loop for element in row
-                      collect 0)))
-
-(defmethod matrix-product ((m number) (n number))
-  "m * n"
-  (* m n))
+  (:documentation "product of two matrix matrix1 and matrix2")
+  (:method ((matrix1 list) (matrix2 list))
+    "matrix product: m1 * m2"
+    (let ((size1 (lists-length-equal matrix1))
+          (size2 (lists-length-equal matrix2)))
+      (assert (and size1 size2))
+      (assert (= (cdr size1) (car size2)))
+      (if (and (= (car size1) 1) (= (cdr size2) 1))
+          (inner-product matrix1 (transpose matrix2))
+          (loop for row in matrix1
+                collect (loop for col in (transpose matrix2)
+                              collect (basic-list-inner-product row col))))))
+  (:method ((matrix list) (n number))
+    "matrix * n"
+    (matrix-multiple-scalar matrix n))
+  (:method ((n number) (matrix list))
+    "n * matrix"
+    (matrix-multiple-scalar matrix n))
+  (:method ((matrix list) (zero (eql 0)))
+    "matrix * 0"
+    (loop for row in matrix
+          collect (loop for element in row
+                        collect 0)))
+  (:method ((m number) (n number))
+    "m * n"
+    (* m n)))
 
 (defun matrix-multi-product (&rest matrices)
   " m1 * m2 * ... * mn"
