@@ -137,9 +137,8 @@ consisting of the input signal at the current time and at delays of from 1 to R-
                       :tdl-type tdl-type))
 
 (defmethod print-object ((tdl tdl) stream)
-  "pretty print"
   (print-unreadable-object (tdl stream :type t)
-    (format t "<TDL content: ~d, from: ~d, type: ~d>" (get-tdl-fifo-content tdl) (from tdl) (tdl-type tdl))))
+    (format stream "<TDL content: ~d, from: ~d, type: ~d>" (get-tdl-fifo-content tdl) (from tdl) (tdl-type tdl))))
 
 (defmethod get-tdl-effective-content ((tdl tdl))
   "get the contents of a tapped delay line, the result is a list of the tdl's values, only return the effective content (the items not before :from). Note that the fifo queue is in inversed order, and this method returns normal order"
