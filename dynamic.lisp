@@ -67,6 +67,21 @@ this function will only initialize the slots that do not share data outside of t
                  :link-forward link-forward
                  )))
 
+(defmethod print-object ((layer lddn-layer) stream)
+  (print-unreadable-object (layer stream :type t)
+    (format stream "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d~%"
+            (id layer)
+            (neurons layer)
+            (link-to layer)
+            (link-forward layer)
+            (link-backward layer)
+            (bias layer)
+            (alexandria:if-let (x (network-inputs layer)) (id-tdl-alist-format x) nil)
+            (alexandria:if-let (x (network-input-weights layer)) (id-tdl-alist-format x) nil)
+            (alexandria:if-let (x (layer-inputs layer)) (id-tdl-alist-format x) nil)
+            (alexandria:if-let (x (layer-weights layer)) (id-tdl-alist-format x) nil))))
+
+
 (defun make-weights-from-config (weights-config)
   "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
 if weights are in the config, add them to the tdl, else initialize the tdl with nil value.
@@ -456,40 +471,24 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
 (defun FIR-demo-lddn ()
   "Finite Impulse Response Network Demonstration, using a lddn network"
   (let* ((lddn (make-lddn :config lddn-config-graph-14.2))
-         (layer (get-layer lddn 1))
-         (input-tdl (second (assoc 1 (network-inputs layer))))
-         (input-weight-tdl (second (assoc 1 (network-input-weights layer))))
          (square-wave (square-wave-generator 1 10)))
     (loop for i from 0 to 19
           do (progn
                (let* ((p (funcall square-wave))
                       (network-input (list (list 1 p)))
                       (network-output (calc-lddn-output! lddn network-input)))
-                 (format t "~&Network input tdl effective content: ~d~%" (get-tdl-effective-content input-tdl))
-                 (format t "~&Network input tdl fifo content: ~d~%" (get-tdl-fifo-content input-tdl))
-                 (format t "~&Network input weight tdl content: ~d~%" (get-tdl-effective-content input-weight-tdl))
-                 (format t "~&SERIES: ~d, input: ~d, output: ~,3f~%" i p (cadar network-output)))))))
+                 (format t "~&~d, input: ~d, output: ~,3f~%" i p (cadar network-output)))))))
 
 (defun IIR-demo-lddn ()
   "Infinite Impulse Response Network Demonstration, using a lddn network"
   (let* ((lddn (make-lddn :config lddn-config-graph-14.4))
-         (layer (get-layer lddn 1))
-         (layer-input-tdl (second (assoc 1 (layer-inputs layer))))
-         (layer-weight-tdl (second (assoc 1 (layer-weights layer))))
          (square-wave (square-wave-generator 1 10)))
-    (format t "~&Config: ~d~%" lddn-config-graph-14.4)
-    (format t "~&Initial, layer input tdl fifo length: ~d~%" (tdl-fifo-length layer-input-tdl))
-    (format t "~&Initial, layer input tdl fifo content: ~d~%" (get-tdl-fifo-content layer-input-tdl))
-    (format t "~&Initial, layer weight tdl fifo length: ~d~%" (tdl-fifo-length layer-weight-tdl))
-    (format t "~&Initial, layer weight tdl content: ~d~%" (get-tdl-fifo-content layer-weight-tdl))
-    (loop for i from 0 to 19
+        (loop for i from 0 to 19
           do (progn
                (let* ((p (funcall square-wave))
                       (network-input (list (list 1 p)))
                       (network-output (calc-lddn-output! lddn network-input)))
-                 (format t "~&Layer input tdl fifo content: ~d~%" (get-tdl-fifo-content layer-input-tdl))
-                 (format t "~&Layer weight tdl content: ~d~%" (get-tdl-fifo-content layer-weight-tdl))
-                 (format t "~&SERIES: ~d, input: ~d, output: ~,3f~%" i p (cadar network-output)))))))
+                     (format t "~&SERIES: ~d, input: ~d, output: ~,3f~%" i p (cadar network-output)))))))
 
 (defun IIR-demo ()
   "Infinite Impulse Response Network Demonstration. Page 271 Chinese edition."
