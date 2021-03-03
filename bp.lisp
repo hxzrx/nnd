@@ -165,12 +165,13 @@
 
 
 (defgeneric derivative-diag (fun vars)
-  (:documentation "F'(n) = diag(f'(n1) f'(n2) ... f'(nm))"))
-
-(defmethod derivative-diag ((fun function) (vars list))
-  "Chinese Ed. p185, (11.34)"
-  ;;(derivative-diag (derivative :logsig) '(1 2 3))
-  (diag-from-list (mapcar fun vars)))
+  (:documentation "F'(n) = diag(f'(n1) f'(n2) ... f'(nm))")
+  (:method ((fun function) (vars list))
+    "Chinese Ed. p185, (11.34)"
+    ;;(derivative-diag (derivative :logsig) '(1 2 3))
+    (diag-from-list (mapcar fun vars)))
+  (:method ((fun function) (vars number))
+    (funcall fun vars)))
 
 ;;(defgeneric sensitivity (bp ∂F target a m)
 ;;  (:documentation "sensicivity s = ∂F / ∂n"))
