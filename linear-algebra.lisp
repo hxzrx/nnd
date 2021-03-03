@@ -1002,27 +1002,23 @@ if min and max were nil, the elements will be real number in [0, 1]"))
 
 
 (defgeneric kroncker-product (A B)
-  (:documentation "A ⊗ B, Kronecker product of A and B"))
-
-(defmethod kroncker-product ((A list) (B list))
-  "A ⊗ B"
-  (loop for A-row in A
-        append
-        (reduce #'make-augmented
-                (loop for element in A-row
-                      collect (matrix-product element B)))))
-
-(defmethod kroncker-product ((a number) (B list))
-  "number ⊗ matrix"
-  (matrix-product a B))
-
-(defmethod kroncker-product ((A list) (b number))
-  "matrix ⊗ number"
-  (matrix-product A b))
-
-(defmethod kroncker-product ((a number) (b number))
-  "number ⊗ number"
-  (* a b))
+  (:documentation "A ⊗ B, Kronecker product of A and B")
+  (:method ((A list) (B list))
+    "A ⊗ B"
+    (loop for A-row in A
+          append
+          (reduce #'make-augmented
+                  (loop for element in A-row
+                        collect (matrix-product element B)))))
+  (:method ((a number) (B list))
+    "number ⊗ matrix"
+    (matrix-product a B))
+  (:method ((A list) (b number))
+    "matrix ⊗ number"
+    (matrix-product A b))
+  (:method ((a number) (b number))
+    "number ⊗ number"
+    (* a b)))
 
 (defgeneric vec-operator (matrix)
   (:documentation "transforms a matrix into a vector by stacking the columns of the matrix one underneath the other")
