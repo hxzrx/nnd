@@ -449,8 +449,8 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
 (defgeneric format-string (object)
   (:documentation "return a string about the brief information about the object, and this string can be used in print-object method to get a pretty print"))
 
-(defun alist-assoc-and-replace (alist item replaced-to)
-  "assoc an alist, if return t, replace it's value to `replaced-to, else add an new cons to the alist whose key is `item and value is `replaced-to. Note that this function does not check if item is nil, do it in the invoking place if needed"
+(defun alist-push-or-replace! (alist item replaced-to)
+  "assoc an alist, if return t, replace it's value to `replaced-to, else push an new cons to the alist whose key is `item and value is `replaced-to. Note that this function does not check if item is nil, do it in the invoking place if needed"
   (alexandria:if-let (assoc-res (assoc item alist))
     (rplacd assoc-res (list replaced-to))
     (push (list item replaced-to) alist))
