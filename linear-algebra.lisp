@@ -607,6 +607,16 @@
               collect (loop for col below n
                             collect (if (= row col) diag 0))))))
 
+(defgeneric get-matrix-diag (matrix)
+  (:documentation "collect the diagonal element and return a list")
+  (:method ((matrix list))
+    (let ((rank (matrix-size matrix)))
+      (loop for rows in matrix
+            for i from 0 below (min (car rank) (cdr rank))
+            collect (nth i rows))))
+  (:method ((n number))
+    n))
+
 (defun make-single (len single-place)
   "make a column vector with 1 in the specified placed and zeros else where"
   (assert (<= single-place (1- len)))
