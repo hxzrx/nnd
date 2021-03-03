@@ -249,13 +249,8 @@
 
 (defun matrix-multi-add (matrices)
   "m1 + m2 + ... + mn, if the input is nil, this function will return nil"
-  (format t "~&<matrix-multi-add>~%")
-  (format t "~&matrices: ~d ~%" matrices)
   (alexandria:when-let (matrices-removed-nil (remove nil matrices))
-    (reduce #'matrix-add matrices-removed-nil))
-  ;(format t "~&<matrix-multi-add exit>~%")
-  )
-
+    (reduce #'matrix-add matrices-removed-nil)))
 
 ;;;; inner produce
 (defgeneric inner-product (a b)

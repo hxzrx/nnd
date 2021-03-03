@@ -95,16 +95,12 @@ this function will only initialize the slots that do not share data outside of t
   "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
 if weights are in the config, add them to the tdl, else initialize the tdl with nil value.
 parameter: (list (list :id 1 :w (list '((1/3 1/3 /13) (1/3 1/3 1/3)))))"
-  (format t "<make-weights-from-config>~%")
   (when weights-config ;some weights, such as IWs or the 1st layer's LW, will not be avaliable, and should return nil
     (loop for plist in weights-config
           collect (list (getf plist :id)
                         (progn
                           (let ((tdl (make-delay-from-config (getf plist :delay) nil)))
-                            (format t "tdl content, effective: ~d, fifo: ~d~%"
-                                    (get-tdl-effective-content tdl)
-                                    (get-tdl-fifo-content tdl))
-                            (alexandria:when-let (weights (getf plist :w))
+                                                        (alexandria:when-let (weights (getf plist :w))
                               (dolist (w weights) (add-tdl-content tdl w))
                               (when (= (from tdl) 1) ;forward and from 1, see function make-delay-from-config
                                 (add-tdl-content tdl nil)))
@@ -136,14 +132,10 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 (defmethod add-network-input-to-layer ((layer lddn-layer) raw-input-alist)
   "add the network's raw input to the network-input's tdl"
-  (format t "~&<add-network-input-to-layer>~%")
-  (format t "~&raw input: ~d~%" raw-input-alist)
   (with-slots ((input network-inputs)) layer
     (loop for (lth-in tdl) in input
           do (alexandria:when-let (in-vec (assoc lth-in raw-input-alist))
-               (format t "in-vec: ~d~%" in-vec)
                (add-tdl-content tdl (second in-vec))
-               (format t "input tdl content: ~d~%~%" (get-tdl-effective-content tdl))
                ))))
 
 (defmethod get-layer-id ((layer lddn-layer))
@@ -181,43 +173,27 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 (defmethod calc-layer-net-input ((layer lddn-layer))
   "calc the net output of layer m at time t, the equation is (14.1)"
-  (format t "~&<In calc-layer-net-input, layer id: ~d>~%" (get-layer-id layer))
   (matrix-multi-add ;will remove nil first
    (list
-    (format t "~&begin to calc layer inputs part~%")
     ;;layer inputs part
     (with-slots ((lf link-forward)
                  (li layer-inputs)
                  (lw layer-weights)) layer
-      (format t "~&lf: ~d, li: ~d, lw: ~d~%" lf li lw)
-      (when (second (assoc 1 li))
-        (format t "~&layer input tdl content: ~d~%" (get-tdl-fifo-content (second (assoc 1 li)))))
-      (when (second (assoc 1 lw))
-        (format t "~&layer input weight tdl content: ~d~%" (get-tdl-fifo-content (second (assoc 1 lw)))))
       (matrix-multi-add
        (loop for l in lf
              collect (matrix-multi-add
                       (loop for delay-input in (get-tdl-effective-content (second (assoc l li)))
                             for delay-weight in (get-tdl-effective-content (second (assoc l lw)))
-                            collect (progn
-                                      (format t "link forward layer: ~d, delay input: ~d, delay weight: ~d~%" l delay-input delay-weight)
-                                      (format t "weight tdl contents: ~d~%" (get-tdl-effective-content (second (assoc l lw))))
-                                      (matrix-product delay-weight delay-input)))))))
-    (format t "~&begin to calc network inputs part~%")
+                            collect (matrix-product delay-weight delay-input))))))
     ;;network inputs part
     (with-slots ((ni  network-inputs) ;may produce nil
                  (niw network-input-weights)) layer
-      (format t "~&ni: ~d, niw: ~d~%" ni niw)
       (matrix-multi-add
        (loop for (l delay-input) in ni ;ni is an associate list about input id and it's tdl
              collect (matrix-multi-add
                       (loop for each-delay-input in (get-tdl-effective-content delay-input)
                             for each-delay-weight in (get-tdl-effective-content (second (assoc l niw)))
-                            collect (progn
-                                      (format t "dinput: ~d, dweight: ~d~%" each-delay-input each-delay-weight)
-                                      (format t "input tdl content: ~d~%" (get-contents (content delay-input)))
-                                      (matrix-product each-delay-weight each-delay-input)))))))
-    (format t "~&begin to calc the bias part~%")
+                            collect (matrix-product each-delay-weight each-delay-input))))))
     (bias layer))))
 
 (defmethod layer-link-delay? ((layer-from lddn-layer) (layer-to lddn-layer))
@@ -404,16 +380,11 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
 
 (defmethod calc-neuron-output! ((lddn lddn) (layer lddn-layer))
   "calc the output of this layer, and send the result to the layers it connects to"
-  (format t "~&<In calc-neuron-output!>~%")
   (let ((res (funcall (transfer layer) (calc-layer-net-input layer))))
-    (format t "~&transfer result: ~d~%" res)
     (set-neuron-output! layer res)
-    (format t "the neuron output was setted~%")
     (loop for send-to-id in (link-to layer)
-          do (progn
-               (format t "the neuron output <~d> is propagating forward to layer: ~d~%" res send-to-id)
-               (add-tdl-content (get-layer-input (get-layer lddn send-to-id) (get-layer-id layer))
-                                     res)))
+          do (add-tdl-content (get-layer-input (get-layer lddn send-to-id) (get-layer-id layer))
+                                     res))
     ))
 
 (defmethod calc-lddn-output! ((lddn lddn) input-alist)
@@ -422,14 +393,10 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                (input-layers raw-input-layers)
                (output-layers final-output-layers)
                (simul-order simul-order)) lddn
-    (format t "in with-slots: input layers: ~d, output layers: ~d~%" input-layers output-layers)
     (dolist (id input-layers) ;send input vector to the raw input layers
       (add-network-input-to-layer (get-layer lddn id) input-alist))
-    (format t "input pushed!~%")
     (dolist (layer-id simul-order)
-      (format t "~%calc neuron output for layer: ~d~%" layer-id)
       (calc-neuron-output! lddn (get-layer lddn layer-id)))
-    (format t "all neuros' outputs completed!~%")
     (loop for out-layer-id in output-layers ;collect network output result
           collect (list out-layer-id (get-neuron-output (get-layer lddn out-layer-id))))))
 
