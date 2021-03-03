@@ -31,7 +31,7 @@
    (link-forward :initarg :link-forward :accessor link-forward :type list :initform nil
                :documentation "$L_m^f$, a list of id of layers that directly connect forward to this layer")
    (link-backward :initarg :link-backward :accessor link-backward :type list :initform nil
-                  :documentation "$L_m^b$, a list of indices of layers that are directly connected backwards to this layer (or to which this layer connects forward) and that contain no delays in the connection, this is a subset of `link-to but has no delays")
+                  :documentation "$L_m^b$, a list of indices of layers that are directly connected backwards to this layer (or to which this layer connects forward) and that contain NO DELAYS in the connection, this is a subset of `link-to but has no delays")
    )
   (:documentation "A layer of a dynamic network.
 There are 4 types of slots,
@@ -67,29 +67,6 @@ this function will only initialize the slots that do not share data outside of t
                  :layer-inputs layer-inputs
                  :link-forward link-forward
                  )))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; pretty print
-
-(defmethod format-string ((layer lddn-layer))
-  "return a format string about the object"
-  (format nil "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d"
-            (id layer)
-            (neurons layer)
-            (link-to layer)
-            (link-forward layer)
-            (link-backward layer)
-            (bias layer)
-            (alexandria:if-let (x (network-inputs layer)) (id-tdl-alist-format x) nil)
-            (alexandria:if-let (x (network-input-weights layer)) (id-tdl-alist-format x) nil)
-            (alexandria:if-let (x (layer-inputs layer)) (id-tdl-alist-format x) nil)
-            (alexandria:if-let (x (layer-weights layer)) (id-tdl-alist-format x) nil)))
-
-(defmethod print-object ((layer lddn-layer) stream)
-  (print-unreadable-object (layer stream :type t)
-    (format stream "~d" (format-string layer))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun make-weights-from-config (weights-config)
   "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
@@ -130,14 +107,30 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
   (loop for cfg in config
         collect (list (getf cfg :id) (getf cfg :to-layer))))
 
-(defmethod add-network-input-to-layer ((layer lddn-layer) raw-input-alist)
-  "add the network's raw input to the network-input's tdl"
-  (with-slots ((input network-inputs)) layer
-    (loop for (lth-in tdl) in input
-          do (alexandria:when-let (in-vec (assoc lth-in raw-input-alist))
-               (add-tdl-content tdl (second in-vec))
-               ))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; pretty print
+
+(defmethod format-string ((layer lddn-layer))
+  "return a format string about the object"
+  (format nil "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d"
+            (id layer)
+            (neurons layer)
+            (link-to layer)
+            (link-forward layer)
+            (link-backward layer)
+            (bias layer)
+            (alexandria:if-let (x (network-inputs layer)) (id-tdl-alist-format x) nil)
+            (alexandria:if-let (x (network-input-weights layer)) (id-tdl-alist-format x) nil)
+            (alexandria:if-let (x (layer-inputs layer)) (id-tdl-alist-format x) nil)
+            (alexandria:if-let (x (layer-weights layer)) (id-tdl-alist-format x) nil)))
+
+(defmethod print-object ((layer lddn-layer) stream)
+  (print-unreadable-object (layer stream :type t)
+    (format stream "~d" (format-string layer))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; get's and set's about the slots of an lddn-layer
 (defmethod get-layer-id ((layer lddn-layer))
   (id layer))
 
@@ -171,6 +164,15 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 (defmethod set-link-backward! ((layer lddn-layer) layer-id-list)
   (setf (link-backward layer) layer-id-list))
 
+(defmethod get-link-forward ((layer lddn-layer))
+  (link-forward layer))
+
+(defmethod get-link-backward ((layer lddn-layer))
+  (link-backward layer))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+
 (defmethod calc-layer-net-input ((layer lddn-layer))
   "calc the net output of layer m at time t, the equation is (14.1)"
   (matrix-multi-add ;will remove nil first
@@ -196,6 +198,14 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                             collect (matrix-product each-delay-weight each-delay-input))))))
     (bias layer))))
 
+(defmethod add-network-input-to-layer ((layer lddn-layer) raw-input-alist)
+  "add the network's raw input to the network-input's tdl"
+  (with-slots ((input network-inputs)) layer
+    (loop for (lth-in tdl) in input
+          do (alexandria:when-let (in-vec (assoc lth-in raw-input-alist))
+               (add-tdl-content tdl (second in-vec))
+               ))))
+
 (defmethod layer-link-delay? ((layer-from lddn-layer) (layer-to lddn-layer))
   "check if the layer input from `layer-from to `layer-to has non-ZERO delay, before calling this function, one should make sure that there is a direct link from `layer-from to `layer-to"
   (let ((from-id (get-layer-id layer-from))
@@ -203,10 +213,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
     (if (null (find to-id (link-to layer-from)))
         (warn "layer ~d has no link to layer ~d" (get-layer-id layer-from) (get-layer-id layer-to)))
     (let ((tdl (get-layer-weight layer-to from-id)))
-      (if (and (eq (get-tdl-type tdl) :forward) (= (tdl-effective-length tdl) 1)) ;see make-delay-from-config for delay definition
+      (if (and (eq (get-tdl-type tdl) :forward) (= (tdl-fifo-length tdl) 1)) ;see make-delay-from-config for delay definition
           nil
           t))))
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -219,6 +228,10 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
              :documentation "associate list about each input's id and the list of layers' id it will input to")
    (layers :initarg :layers :accessor layers :type list :initform nil
            :documentation "a associate list of the layers of the network, the key of the associate list is the layer's id")
+   (input-layers :initarg :input-layers :accessor input-layers :type list :initform nil
+                 :documentation "$X$ in the textbook, the list of layer id's of all the input layers")
+   (output-layers :initarg :output-layers :accessor output-layers :type list :initform nil
+                  :documentation "$U$ in the textbook, the list of layer id's of all the output layers")
    (raw-input-layers :initarg :raw-input-layers :accessor raw-input-layers :type list :initform nil
                          :documentation "the id of the layers that receive network's raw input")
    (final-output-layers :initarg :final-output-layers :accessor final-output-layers :type list :initform nil
@@ -283,7 +296,7 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                    (randomize-layer-weights! lddn layer layer-id)))
         ;;set link-backward for each layer
         (set-link-backward! layer (loop for id in link-to
-                                        when (layer-link-delay? layer (get-layer lddn id))
+                                        when (null (layer-link-delay? layer (get-layer lddn id)))
                                           collect id))
         ;;set default tdl content of layer-input to zero vector
         (loop for (layer-id tdl) in layer-inputs
@@ -302,14 +315,18 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
   (with-slots ((inputs inputs)
                (input-to input-to)
                (layers layers)
+               (input-layers input-layers)
+               (output-layers output-layers)
                (raw-input-layers raw-input-layers)
                (final-output-layers final-output-layers)
                (simul-order simul-order)
                (bp-order bp-order)) lddn
-  (format nil "Layers: ~d~%Inputs: ~d~%Input to layers: ~d~%Raw input layers: ~d~%Network output layers: ~d~%Simulation order: ~d~%Backpropagation order: ~d~%Layers:~&--------~&~d~&--------"
+  (format nil "Layers: ~d~%Inputs: ~d~%Input to layers: ~d~%Input layers(X): ~d~%Output layers(U): ~d~%Raw input layers: ~d~%Network output layers: ~d~%Simulation order: ~d~%Backpropagation order: ~d~%Layers:~&--------~&~d~&--------"
           (length simul-order)
           (format-string-inputs inputs)
           (format-string-input-to input-to)
+          (format nil "~{~d ~}" input-layers)
+          (format nil "~{~d ~}" output-layers)
           (format nil "~{~d ~}" raw-input-layers)
           (format nil "~{~d ~}" final-output-layers)
           (format nil "~{~d ~}" simul-order)
@@ -341,6 +358,7 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
     (format stream "~d" (format-string lddn))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; get's and set's about lddn slots
 
 (defmethod get-layer ((lddn lddn) layer-id)
   "get the layer instance whose is is `layer-id"
@@ -353,6 +371,29 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
 (defmethod get-layer-neurons ((lddn lddn) layer-id)
   "get the neurons num of the specified layer"
   (get-neurons (get-layer lddn layer-id)))
+
+(defmethod get-input-layers ((lddn lddn))
+  "get input-layers($X$) of this lddn network"
+  (input-layers lddn))
+
+(defmethod get-output-layers ((lddn lddn))
+  "get output-layers($U$) of this lddn network"
+  (output-layers lddn))
+
+(defmethod get-simul-order ((lddn lddn))
+  (simul-order lddn))
+
+(defmethod get-bp-order ((lddn lddn))
+  (bp-order lddn))
+
+(defmethod get-input-layers ((lddn lddn))
+  (input-layers lddn))
+
+(defmethod get-output-layers ((lddn lddn))
+  (output-layers lddn))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmethod randomize-input-weights! ((lddn lddn) (layer lddn-layer) input-id)
   "initialize the input weights as random matrices, this function is used as :after make-instance of lddn"
@@ -387,6 +428,8 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                                      res))
     ))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defmethod calc-lddn-output! ((lddn lddn) input-alist)
   "calc the output of the lddn network providing a list of input vectors"
   (with-slots ((layers layers)
@@ -399,6 +442,74 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
       (calc-neuron-output! lddn (get-layer lddn layer-id)))
     (loop for out-layer-id in output-layers ;collect network output result
           collect (list out-layer-id (get-neuron-output (get-layer lddn out-layer-id))))))
+
+
+(defmethod calc-bptt-gradient ((lddn lddn) (samples list))
+  "Backpropagation-Through-Time Gradient"
+  (let* ((sample-num (length samples))
+         (bp-order (get-bp-order lddn))
+         (simul-order (get-simul-order lddn))
+         (input-layers (get-input-layers lddn))
+         (output-layers (get-output-layers lddn))
+         (exist-sens-layer nil) ; $E_S(u)$, associate list which associate the layers that has non-zero sensitivities with the key
+         (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
+         (partial-derivative)
+         )
+    (dotimes (i (1- sample-num) (format t "all samples were processed"))
+      (let* ((output-layers-tmp nil)  ; $U^'=\phi$
+             )
+        (dolist (u output-layers)
+          (when u (alist-push-or-replace! exist-sens-layer u nil))
+          (when u (alist-push-or-replace! exist-sens-input-layer u nil)))
+        (dolist (m bp-order) ;For m decremented through the BP order
+          (let* ((layer-m (get-layer lddn m))
+                 (link-backward-m (get-link-backward layer-m))
+                 (F^m-n^m)
+                 )
+            (dolist (u output-layers-tmp)
+              (alexandria:when-let (exi-sens-u (assoc u exist-sens-layer))
+                (when (intersection (second exi-sens-u) link-backward-m) ;when the intersection is not empty
+                  ;;calc $S^{u,m}$
+                  ;;......
+                  ;;......
+                  (alist-push-or-replace! exist-sens-layer u m)
+                  (when (member m input-layers)
+                    (alist-adjoin-to-value-set! exist-sens-input-layer u m)))))
+            (when (member m output-layers)
+              ;;calc S^{m,m}=F
+              (adjoin m output-layers-tmp)
+              (alist-adjoin-to-value-set! exist-sens-layer m m)
+              (when (member m input-layers)
+                (alist-adjoin-to-value-set! exist-sens-input-layer m m)))))
+
+        (dolist (m simul-order)
+
+          )
+
+        ))))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -426,7 +537,7 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                            :layer-input (list (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
                            :link-to '(4))
                      (list :id 4 :neurons 1 :transfer :logsig
-                           :layer-input (list (list :id 3 :delay (list :from 1 :to 1 :dir :foreward) :w (list '((1/2 1/2))))
+                           :layer-input (list (list :id 3 :delay (list :from 1 :to 1 :dir :forward) :w (list '((1/2 1/2))))
                                               (list :id 4 :delay (list :from 1 :to 1 :dir :self) :w (list '((1))))
                                               (list :id 7 :w (list '((1/2 1/2)))))
                            :link-to '(4 5 9))
