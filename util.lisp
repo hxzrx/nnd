@@ -449,12 +449,12 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
 (defgeneric format-string (object)
   (:documentation "return a string about the brief information about the object, and this string can be used in print-object method to get a pretty print"))
 
-(defun alist-push-or-replace! (alist item replaced-to)
+(defun alist-push-or-replace! (alist item replaced-to &key (test #'eql))
   "assoc an alist, if return t, replace it's value to `replaced-to, else push an new cons to the alist whose key is `item and value is `replaced-to. Note that this function does not check if item is nil, do it in the invoking place if needed"
-  (alexandria:if-let (assoc-res (assoc item alist))
+  (alexandria:if-let (assoc-res (assoc item alist :test test))
     (rplacd assoc-res (list replaced-to))
-    (push (list item replaced-to) alist))
-  alist)
+    (nconc alist (list (list item replaced-to))))
+    alist)
 
 (defun alist-adjoin-to-value-set! (alist assoc-key adjoin-item)
   "find `assoc-key in `alist, if found, adjoin an item to the value list, else create a new item and push it to the alist"
