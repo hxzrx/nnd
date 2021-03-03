@@ -455,3 +455,10 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
     (rplacd assoc-res (list replaced-to))
     (push (list item replaced-to) alist))
   alist)
+
+(defun alist-adjoin-to-value-set! (alist assoc-key adjoin-item)
+  "find `assoc-key in `alist, if found, adjoin an item to the value list, else create a new item and push it to the alist"
+  (alexandria:if-let (assoc-res (assoc assoc-key alist))
+    (alist-push-or-replace! alist assoc-key (list assoc-key (adjoin adjoin-item (second assoc-res))))
+    (push (list assoc-key (list adjoin-item)) alist))
+  alist)
