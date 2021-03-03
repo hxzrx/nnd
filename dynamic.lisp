@@ -219,9 +219,28 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
           nil
           t))))
 
+(defmethod layer-parameters ((layer lddn-layer))
+  "by the dict order: network input weight > layer input weight > bias, sort layer id by #'< , sort delay from :from to the end of tdl"
+  (with-slots ((IWs network-input-weights)
+               (LWs layer-weights)
+               (bias bias)) layer
+    (apply #'append
+           (remove nil (list
+                        (when IWs (loop for (id tdl) in (sort IWs #'< :key #'first) ;a list of weights
+                                        append (get-tdl-effective-content tdl)))
+                        (when LWs (loop for (id tdl) in (sort LWs #'< :key #'first) ;a list of weights
+                                        append (get-tdl-effective-content tdl)))
+                        (list bias))))))
+
+(defmethod layer-parameters-vector ((layer lddn-layer))
+  "collect all the parameter of the layer to a column vector"
+  ;;(layer-parameters-vector layer1)
+  (loop for parameter in (layer-parameters layer)
+        append (if (numberp parameter) (list (list parameter))
+                   (matrix-to-vector parameter))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; class definition and initializing
+;;;; lddn class definition and initializing
 
 (defclass lddn ()
   ((inputs :initarg :inputs :accessor inputs :type list :initform nil
