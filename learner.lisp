@@ -48,7 +48,7 @@
   ;; (cascaded-network '((-1) (1)) '( ((1 -1) (1 0)) ((1 1)) ) '( ((1) (2)) 1 ) (list #'cube #'purelin)) ;1
   (if (null weights)
       input
-      (cascaded-network 
+      (cascaded-network
        (funcall (car transfers)
                 (matrix-add (matrix-product (car weights) input)
                             (car biases)))
@@ -69,4 +69,3 @@
        (cdr weights)
        (cdr biases)
        (cdr transfers))))
-
