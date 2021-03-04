@@ -476,5 +476,10 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
                 collect (if (funcall test key (first pair-list))
                             (list (first pair-list) (adjoin new-value (second pair-list)))
                             pair-list))
-          (append alist (list (list key (list new-value)))))
-      (list (list key (list new-value)))))
+          (append alist (list (list key
+                                    (if new-value
+                                        (list new-value)
+                                        nil)))))
+      (if new-value
+          (list (list key (list new-value)))
+          (list (list key nil)))))
