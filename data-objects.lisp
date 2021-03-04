@@ -190,6 +190,9 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 (defmethod get-tdl-type ((tdl tdl))
   (tdl-type tdl))
 
+(defmethod get-tdl-from ((tdl tdl))
+  (from tdl))
+
 (defmethod tdl-has-delay? ((tdl tdl))
   "check if this tdl has at least some nonzero delay, return nil if the tdl has only a zero delay"
   (if (and (eq (get-tdl-type tdl) :forward)
