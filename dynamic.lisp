@@ -35,7 +35,9 @@
    (link-backward :initarg :link-backward :accessor link-backward :type list :initform nil
                   :documentation "$L_m^b$, a list of indices of layers that are directly connected backwards to this layer (or to which this layer connects forward) and that contain NO DELAYS in the connection, this is a subset of `link-to but has no delays")
    (exist-lw-from-output :initarg :exist-lw-from-output :accessor exist-lw-from-output :type list :initform nil
-                         :documentation "$E_{LW}^U$, the id of the output layers that connect to this layer (which will always be an input layer) with at least some nonzero delay")
+                         :documentation "$E_{LW}^U$, the ids of the output layers that connect to this layer (which will always be an input layer) with at least some nonzero delay")
+   (exist-lw-from-input :initarg :exist-lw-from-input :accessor exist-lw-from-input :type list :initform nil
+                        :documentation "$E_{LW}^X$, the ids of the input layers that have a connection from this layer with at least some nonzero delay")
    )
   (:documentation "A layer of a dynamic network.
 There are 4 types of slots,
@@ -126,13 +128,14 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 (defmethod format-string ((layer lddn-layer))
   "return a format string about the object"
-  (format nil "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%Exists LW from U, E_LW^U: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d"
+  (format nil "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%Exists LW from U, E_LW^U: ~d~%Esists LW from X, E_LW^X: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d"
             (id layer)
             (neurons layer)
             (format nil "(~{~d~^ ~})" (link-to layer))
             (format nil "(~{~d~^ ~})" (link-forward layer))
             (format nil "(~{~d~^ ~})" (link-backward layer))
             (format nil "(~{~d~^ ~})" (exist-lw-from-output layer))
+            (format nil "(~{~d~^ ~})" (exist-lw-from-input layer))
             (alexandria:when-let (b (bias layer))
               (if (listp b) (format nil "(~{~,3f~^ ~})" (first (transpose b)))
                   (format nil "(~,3f)" b)))
@@ -209,6 +212,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 (defmethod get-exist-lw-from-output ((layer lddn-layer))
   (exist-lw-from-output layer))
+
+(defmethod get-exist-lw-from-input ((layer lddn-layer))
+  (exist-lw-from-input layer))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
@@ -329,12 +335,17 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 (defmethod initialize-instance :after ((lddn lddn) &key config  &allow-other-keys)
   "initialize network-output slot of lddn,
 initizlize the layers' slots link-forward, link-backward, layer-weights, network-input-weights, bias"
-  (with-slots ((layers layers)) lddn
+  (with-slots ((layers layers)
+               (raw-input-layers raw-input-layers)
+               (U-list output-layers)
+               (input-layers input-layers)
+               (final-output-layers final-output-layers)) lddn
+    ;; initialize the parts in the layers
     (dolist (layer layers)
       (with-slots ((IWs network-input-weights)
                    (LWs layer-weights)
-
                    (link-to link-to)
+                   (exist-lw-from-input exist-lw-from-input)
                    (layer-inputs layer-inputs)
                    (network-inputs network-inputs)) layer
         ;;randomize the IWs when they were not configured
@@ -367,15 +378,20 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
         (loop for (input-id tdl) in network-inputs
               do (dotimes (i (tdl-fifo-length tdl))
                    (add-tdl-content tdl (make-zeros (get-input-dimension lddn input-id) 1))))
-        )))
-  ;; set $U$, output-layers
-  (with-slots ((U-list output-layers)
-               (layers layers)
-               (final-output-layers final-output-layers)) lddn
+        ;;set exist-lw-from-input for each layer
+        (setf exist-lw-from-input  (loop for to-id in link-to
+                                         when (layer-link-delay? layer (get-layer lddn to-id))
+                                           collect to-id))
+        ))
+
+    ;;below will initialize the slots of lddn
     (setf U-list (reduce #'union (cons final-output-layers
                                        (loop for layer in layers
                                              collect (get-exist-lw-from-output layer)))))
-    ))
+    (setf input-layers (reduce #'union (cons raw-input-layers
+                                             (loop for layer in layers
+                                                   collect (get-exist-lw-from-input layer)))))
+    )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; pretty print lddn object
