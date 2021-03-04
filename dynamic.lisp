@@ -205,7 +205,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 (defmethod set-deriv-F-n! ((layer lddn-layer))
   "should call when the net-input is ready. side effect: will modify deriv-F-n slot of `layer"
-  (calc-deriv-f-n layer))
+  (calc-deriv-f-n! layer))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 
