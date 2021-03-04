@@ -186,3 +186,10 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 
 (defmethod get-tdl-type ((tdl tdl))
   (tdl-type tdl))
+
+(defmethod tdl-has-delay? ((tdl tdl))
+  "check if this tdl has at least some nonzero delay"
+  (if (and (eq (get-tdl-type tdl) :forward)
+           (= (tdl-fifo-length tdl) 1)) ;see make-delay-from-config for delay definition
+      nil
+      t))
