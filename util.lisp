@@ -456,10 +456,12 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
     (nconc alist (list (list item replaced-to))))
   alist)
 
+#+:ignore
 (defun alist-create-or-adjoin! (alist key new-value)
   "assoc an alist, if return t, adjoin `value to the respected val-list, else push a new k/v pair, return a new alist.
   alist is something like '((:C (1)) (:B (4 3 2))).
   be carefull when alist is nil, it will not modify the parameter, use the functional edition alist-create-or-adjoin"
+  ;not tested when alist is nil or new-value is nil
   (if (null alist)
       (list (list key (list new-value)))
       (progn (alexandria:if-let (assoc-result (assoc-utils:aget alist key)) ;aget return the cdr of the cons
