@@ -12,7 +12,7 @@
   (is (not (nnd::list-length-equal '(1 2) nil)))
   (is (not (nnd::list-length-equal '(a) '(1 2 3))))
   (is (not (nnd::list-length-equal '(1 2 3) '(a)))))
-      
+
 (deftest test-list-check-type ()
   (is (not (nnd::list-check-type nil 'real)))
   (is (not (nnd::list-check-type '(1 a 2) 'real)))
@@ -36,11 +36,14 @@
   (is (not (nnd::list-check-rectangle '((1 2) (4 5 6)))))
   (is (not (nnd::list-check-rectangle '((1 2 3) (4 5)))))
   (is (not (nnd::list-check-rectangle '((1 2 3) (4 5) (7 8 9))))))
-  
+
 (deftest test-quadratic-function ()
   (let ((qfun1 (nnd::quadratic-function '((10 -6) (-6 10)) '((4) (4))))
         (x1 '((-1) (-2.5))))
     (is (funcall qfun1 x1) 7.25)))
-    
-    
 
+(deftest test-alist-create-or-adjoin ()
+  (is (equal (nnd::alist-create-or-adjoin nil :a 0) '((:A (0)))))
+  (is (equal (nnd::alist-create-or-adjoin '((:A (0))) :a 0) '((:A (0)))))
+  (is (equal (nnd::alist-create-or-adjoin '((:A (0))) :a 1) '((:A (1 0)))))
+  (is (equal (nnd::alist-create-or-adjoin '((:A (0))) :b 1) '((:A (0)) (:B (1))))))
