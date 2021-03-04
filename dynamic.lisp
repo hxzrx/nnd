@@ -656,7 +656,6 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                                                          (first (get-tdl-effective-content
                                                                  (get-layer-weight (get-layer lddn l) m))))))
                            (first (second (assoc (list m m) sens-matrix-alist :test #'equal))))))
-                    ;;(format t "~&Sensitivity matrix $S^{~d,~d}(t)$ = ~d~%" u m sens-matrix-u-m)
                     (setf sens-matrix-alist ;storage
                           (alist-create-or-adjoin sens-matrix-alist (list u m) sens-matrix-u-m :test #'equal)))
                   (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
@@ -672,7 +671,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
             )) ;end for dolist m
 
         (dolist (m simul-order)
-
+          (format t "~&simulation order, layer: ~d~%" m)
           )
 
         ))))
