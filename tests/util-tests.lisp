@@ -44,6 +44,9 @@
 
 (deftest test-alist-create-or-adjoin ()
   (is (equal (nnd::alist-create-or-adjoin nil :a 0) '((:A (0)))))
+  (is (equal (nnd::alist-create-or-adjoin nil :a nil) '((:A NIL))))
   (is (equal (nnd::alist-create-or-adjoin '((:A (0))) :a 0) '((:A (0)))))
   (is (equal (nnd::alist-create-or-adjoin '((:A (0))) :a 1) '((:A (1 0)))))
-  (is (equal (nnd::alist-create-or-adjoin '((:A (0))) :b 1) '((:A (0)) (:B (1))))))
+  (is (equal (nnd::alist-create-or-adjoin '((:A (0))) :b 1) '((:A (0)) (:B (1)))))
+  (is (equal (nnd::alist-create-or-adjoin '((:A (0))) :b nil) '((:A (0)) (:B NIL))))
+  (is (equal (nnd::alist-create-or-adjoin '((:A (0)) (:B NIL)) :b 1) '((:A (0)) (:B (1))))))
