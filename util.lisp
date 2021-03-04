@@ -454,11 +454,27 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
   (alexandria:if-let (assoc-res (assoc item alist :test test))
     (rplacd assoc-res (list replaced-to))
     (nconc alist (list (list item replaced-to))))
-    alist)
-
-(defun alist-adjoin-to-value-set! (alist assoc-key adjoin-item)
-  "find `assoc-key in `alist, if found, adjoin an item to the value list, else create a new item and push it to the alist"
-  (alexandria:if-let (assoc-res (assoc assoc-key alist))
-    (alist-push-or-replace! alist assoc-key (list assoc-key (adjoin adjoin-item (second assoc-res))))
-    (push (list assoc-key (list adjoin-item)) alist))
   alist)
+
+(defun alist-create-or-adjoin! (alist key new-value)
+  "assoc an alist, if return t, adjoin `value to the respected val-list, else push a new k/v pair, return a new alist.
+  alist is something like '((:C (1)) (:B (4 3 2))).
+  be carefull when alist is nil, it will not modify the parameter, use the functional edition alist-create-or-adjoin"
+  (if (null alist)
+      (list (list key (list new-value)))
+      (progn (alexandria:if-let (assoc-result (assoc-utils:aget alist key)) ;aget return the cdr of the cons
+               (when (null (member new-value (first assoc-result)))
+                 (nconc (first assoc-result) (list new-value)))
+               (nconc alist (list (list key (list new-value)))))
+             alist)))
+
+(defun alist-create-or-adjoin (alist key new-value &key (test #'equal))
+  "alist-create-or-adjoin! will not modify the alist parameter if it is `nil, so use this function without side effects"
+  (if alist
+      (if (assoc key alist)
+          (loop for pair-list in alist
+                collect (if (funcall test key (first pair-list))
+                            (list (first pair-list) (adjoin new-value (second pair-list)))
+                            pair-list))
+          (append alist (list (list key (list new-value)))))
+      (list (list key (list new-value)))))
