@@ -251,7 +251,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
     (bias layer))))
 
 (defmethod add-network-input-to-layer ((layer lddn-layer) raw-input-alist)
-  "add the network's raw input to the network-input's tdl"
+  "add the network's raw inputs to the network-input's tdl"
   (with-slots ((input network-inputs)) layer
     (loop for (lth-in tdl) in input
           do (alexandria:when-let (in-vec (assoc lth-in raw-input-alist))
@@ -563,11 +563,30 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
          (res (funcall (transfer layer) net-input)))
     (set-net-input! layer net-input)
     (set-neuron-output! layer res)
+    (add-network-output-to-cache! lddn (get-layer-id layer) res) ;a better way is to check if this is a output layer first
     (calc-deriv-F-n! layer)
     (loop for send-to-id in (link-to layer)
           do (add-tdl-content (get-layer-input (get-layer lddn send-to-id) (get-layer-id layer))
                               res))
+    res
     ))
+
+(defmethod add-network-input-to-cache! ((lddn lddn) raw-input-alist)
+  "add the network's raw inputs to the network-input-cache slot of lddn"
+  (with-slots ((fifo-alist network-input-cache)) lddn
+    (loop for (id input-vector) in raw-input-alist
+          do (add-fixed-fifo (second (assoc id fifo-alist)) input-vector))))
+
+(defmethod add-network-output-to-cache! ((lddn lddn) output-layer-id output-vector)
+  "add the neuron output of some layer to the slot of network-output-cache of lddn"
+  (with-slots ((fifo-alist network-output-cache)) lddn
+    (alexandria:when-let (id-fifo (assoc output-layer-id fifo-alist))
+    (add-fixed-fifo (second id-fifo) output-vector))))
+
+
+
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -578,7 +597,8 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                (output-layers final-output-layers)
                (simul-order simul-order)) lddn
     (dolist (id input-layers) ;send input vector to the raw input layers
-      (add-network-input-to-layer (get-layer lddn id) input-alist))
+      (add-network-input-to-layer (get-layer lddn id) input-alist)
+      (add-network-input-to-cache! lddn input-alist))
     (dolist (layer-id simul-order)
       (calc-neuron-output! lddn (get-layer lddn layer-id)))
     (loop for out-layer-id in output-layers ;collect network output result
@@ -589,7 +609,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
   (with-slots ((layers layers)) lddn
     (loop for layer in layers
           collect (list (list (get-layer-id layer) (get-layer-id layer))
-                        (get-deriv-F-n layer)))))
+                        (list (get-deriv-F-n layer))))))
 
 (defmethod deriv-neoru-output-to-iw ((lddn lddn) input-layer-id network-input-l input-to-layer-m)
   "equation (14.42), explicit partial derivative of neuro output of layer u to "
@@ -606,7 +626,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
          (sens-matrix-alist nil); $S^{u,m}$ alist associates with {u,m} and the Sensitivity matrix, the key is (list u,m)
          )
     (dolist (sample samples)
-      (calc-lddn-output! lddn (first sample)) ;forward propagation to make an output and get the intermediate results
+      (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
       (setf sens-matrix-alist (collect-init-sens-matrix-alist lddn))
       (let* ((output-layers-tmp nil)  ; $U'$
              (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
@@ -617,6 +637,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
           (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u nil))) ; $E_S^X(u)=\Phi$
 
         (dolist (m bp-order) ;for m decremented through the BP order
+          (format t "~&bp-order, layer: ~d~%" m)
           (let* ((layer-m (get-layer lddn m))
                  (link-backward-m (get-link-backward layer-m)) ;$L_m^b$
                  ;;(derivF-n (get-deriv-f-n layer-m)) ;(F(n(t)))
@@ -624,21 +645,24 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
             (dolist (u output-layers-tmp)
               (alexandria:when-let (exi-sens-u (second (assoc u exist-sens-layer)))
                 (alexandria:when-let (intersect (intersection exi-sens-u link-backward-m))
+                  ;;calc $S^{u,m}$, equation (14.38)
+
                   (let ((sens-matrix-u-m
-                          (matrix-product ;calc $S^{u,m}$, equation (14.38)
+                          (matrix-product
                            (reduce #'matrix-add
                                    (loop for l in intersect
                                          collect
-                                         (matrix-product (second (assoc (list u l) sens-matrix-alist :test #'equal))
+                                         (matrix-product (first (second (assoc (list u l) sens-matrix-alist :test #'equal)))
                                                          (first (get-tdl-effective-content
                                                                  (get-layer-weight (get-layer lddn l) m))))))
-                           (second (assoc (list m m) sens-matrix-alist :test #'equal)))))
-                    (format t "~&Sensitivity matrix $S^{~d,~d}(t)$ = ~d~%" u m sens-matrix-u-m)
-                    (setf sens-matrix-alist
+                           (first (second (assoc (list m m) sens-matrix-alist :test #'equal))))))
+                    ;;(format t "~&Sensitivity matrix $S^{~d,~d}(t)$ = ~d~%" u m sens-matrix-u-m)
+                    (setf sens-matrix-alist ;storage
                           (alist-create-or-adjoin sens-matrix-alist (list u m) sens-matrix-u-m :test #'equal)))
                   (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
                   (when (member m input-layers)
-                    (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u m))))))
+                    (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u m)))
+                  )))
             (when (member m output-layers)
               ;;the calculating of $S^{m,m}(t)=\dot{F}^m(n^m(t))$ was batch set after calc-lddn-output!
               (setf output-layers-tmp (adjoin m output-layers-tmp))
@@ -816,7 +840,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 (defun test-output-p14.2 ()
   "page 291"
   (let* ((lddn (make-lddn :config lddn-config-p14.1))
-         (p '((1 ((1) (1) (1)))))
+         (p '((1 ((1) (1) (1)) 1)))
          (output (calc-lddn-output! lddn p)))
     (format t "~&lddn's inputs: ~d~%" (inputs lddn))
     (format t "~&input-to: ~d~%" (input-to lddn))
@@ -825,3 +849,10 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
     (format t "~&final-output-layers: ~d~%" (final-output-layers lddn))
     (format t "~&sens matrices alist: ~{~d~%~}~%" (collect-init-sens-matrix-alist lddn))
     (format t "~d~%" output)))
+
+
+(defun test-calc-bptt-gradient-p14.1 ()
+  (let* ((lddn (make-lddn :config lddn-config-p14.1))
+         (p (list '((1 ((1) (1) (1)) 1)))))
+    ;(calc-lddn-output! lddn (first P))))
+    (calc-bptt-gradient lddn p)))
