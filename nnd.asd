@@ -12,6 +12,7 @@
   :version 0.1.1
   :license "MulanPSL-2.0"
   :depends-on (#:alexandria
+               #:assoc-utils
                ;;#:bordeaux-threads       ; thread lib
                ;;#:cl-syslog              ; send logs to syslogd
                ;;#:magicl                 ; matrix algebra https://github.com/rigetti/magicl
