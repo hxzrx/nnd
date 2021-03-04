@@ -530,6 +530,17 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
 (defmethod get-output-layers ((lddn lddn))
   (output-layers lddn))
 
+;;RULE: function names use get-xxxx when fetching raw slot, and use query-xxxx when fetching processed data of the slots
+(defmethod query-layer-weight ((lddn lddn) layer-id-from layer-id-to delay)
+  "delay=0 means no delay only in :forward type, in other cases delay=0 means 1 delay"
+  (with-slots ((layer-weights layer-weights)) (get-layer lddn layer-id-to)
+    (let* ((tdl (second (assoc layer-id-from layer-weights)))
+           (content (get-tdl-fifo-content tdl)))
+      (with-slots ((from from)
+                   (tdl-type tdl-type)) tdl
+        (cond ((eq tdl-type :foreward) (nth delay content))
+              (t (nth (1- delay) content)))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmethod randomize-input-weights! ((lddn lddn) (layer lddn-layer) input-id)
