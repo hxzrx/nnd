@@ -156,6 +156,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 (defmethod get-neurons ((layer lddn-layer))
   (neurons layer))
 
+(defmethod get-network-inputs ((layer lddn-layer))
+  (network-inputs layer))
+
 (defmethod get-layer-input ((layer lddn-layer) (input-layer-id integer))
   "get the layer input tdl"
   (with-slots ((li layer-inputs)) layer
@@ -179,6 +182,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 (defmethod set-neuron-output! ((layer lddn-layer) value)
   (setf (neuron-output layer) value))
+
+(defmethod get-link-to ((layer lddn-layer))
+  (link-to layer))
 
 (defmethod set-link-backward! ((layer lddn-layer) layer-id-list)
   (setf (link-backward layer) layer-id-list))
@@ -303,6 +309,10 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                           :documentation "the id of the layers whose neuron-outputs will be used to compared with the target")
    (network-output :initarg :network-output :accessor network-output :type list :initform nil
                    :documentation "an associate list of output result of the lddn network, the keys in the associate list should be across the slot of network-output-layers")
+   (max-network-input-delay :initarg :max-network-input-delay :accessor max-network-input-delay :type integer :initform 0
+                            :documentation "associate list about the input ids and the max delays for each network input, used in (14.42)")
+   (max-layer-input-delay :initarg :max-layer-input-delay :accessor max-layer-input-delay :type integer :initform 0
+                          :documentation "an associate list about the layer ids and the max delays for each layer input, used in (14.43)")
    (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
    (bp-order :initarg :bp-order :accessor bp-order :type list :initform nil :documentation "backpropagation order")
    )
@@ -336,10 +346,15 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
   "initialize network-output slot of lddn,
 initizlize the layers' slots link-forward, link-backward, layer-weights, network-input-weights, bias"
   (with-slots ((layers layers)
+               (inputs inputs)
+               (input-to input-to)
                (raw-input-layers raw-input-layers)
                (U-list output-layers)
                (input-layers input-layers)
-               (final-output-layers final-output-layers)) lddn
+               (output-layers output-layers)
+               (final-output-layers final-output-layers)
+               (max-network-input-delay max-network-input-delay)
+               (max-layer-input-delay max-layer-input-delay)) lddn
     ;; initialize the parts in the layers
     (dolist (layer layers)
       (with-slots ((IWs network-input-weights)
@@ -391,7 +406,28 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
     (setf input-layers (reduce #'union (cons raw-input-layers
                                              (loop for layer in layers
                                                    collect (get-exist-lw-from-input layer)))))
-    )))
+    (setf max-network-input-delay
+          (loop for (input-id dim) in inputs
+                collect (list input-id
+                              (apply #'max
+                                     (loop for input-to-layer-id in (second (assoc input-id input-to))
+                                           collect (tdl-fifo-length
+                                                    (second (assoc input-id (get-network-inputs
+                                                                             (get-layer lddn input-to-layer-id))))))))))
+    (setf max-layer-input-delay
+          (loop for layer-id in output-layers
+                collect (list layer-id
+                              (apply #'max
+                                     (alexandria:if-let
+                                         (len (loop for to-layer-id in (get-link-to (get-layer lddn layer-id))
+                                                    collect (tdl-fifo-length
+                                                             (get-layer-input (get-layer lddn to-layer-id) layer-id))))
+                                       len (list 1))))))
+
+
+
+
+    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; pretty print lddn object
@@ -404,8 +440,10 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                (raw-input-layers raw-input-layers)
                (final-output-layers final-output-layers)
                (simul-order simul-order)
+               (max-network-input-delay max-network-input-delay)
+               (max-layer-input-delay max-layer-input-delay)
                (bp-order bp-order)) lddn
-  (format nil "Layers: ~d~%Inputs: ~d~%Input to layers: ~d~%Input layers(X): ~d~%Output layers(U): ~d~%Raw input layers: ~d~%Network output layers: ~d~%Simulation order: ~d~%Backpropagation order: ~d~%Layers:~&--------~&~d~&--------"
+  (format nil "Layers: ~d~%Inputs: ~d~%Input to layers: ~d~%Input layers(X): ~d~%Output layers(U): ~d~%Raw input layers: ~d~%Network output layers: ~d~%Simulation order: ~d~%Backpropagation order: ~d~%Max network input delay: ~d~%Max layer input delay: ~d~%Layers:~&--------~&~d~&--------"
           (length simul-order)
           (format-string-inputs inputs)
           (format-string-input-to input-to)
@@ -415,6 +453,8 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
           (format nil "~{~d~^ ~}" final-output-layers)
           (format nil "~{~d~^ ~}" simul-order)
           (format nil "~{~d~^ ~}" bp-order)
+          (format nil "~d" max-network-input-delay)
+          (format nil "~d" max-layer-input-delay)
           (apply #'concatenate 'string
                  (list-interpolation
                   (loop for layer in layers
@@ -537,7 +577,9 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
           collect (list (list (get-layer-id layer) (get-layer-id layer))
                         (get-deriv-F-n layer)))))
 
-
+(defmethod deriv-neoru-output-to-iw ((lddn lddn) input-layer-id network-input-l input-to-layer-m)
+  "equation (14.42), explicit partial derivative of neuro output of layer u to "
+  )
 
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
