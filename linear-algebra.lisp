@@ -526,6 +526,10 @@
     (if (eq n 1) 0 (loop for row below m
                          collect (loop for col below n
                                        collect 0)))))
+(defgeneric make-zero-vector (dimension)
+  (:documentation "return a vector with all elements are 0")
+  (:method ((dimension integer))
+    (make-zeros dimension)))
 
 (defgeneric matrix-zeros-p (matrix)
   (:documentation "check if the matrix's elemets are all zeros"))
