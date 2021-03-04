@@ -108,6 +108,9 @@
     (setf tl (setf (cdr tl) (list item)))
     ))
 
+(defmethod add-fixed-fifo ((fifo fixed-len-unsafe-fifo) item)
+  (addq fifo item))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;Tapped Delay Line class
 
