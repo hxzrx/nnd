@@ -301,6 +301,10 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
            :documentation "a associate list of the layers of the network, the key of the associate list is the layer's id")
    (input-layers :initarg :input-layers :accessor input-layers :type list :initform nil
                  :documentation "$X$ in the textbook, the list of layer id's of all the input layers")
+   (network-input-cache :initarg :network-input-cache :accessor network-input-cache :type list :initform nil
+                        :documentation "an associate list about input id's and fixed length fifo's to cache each input vector")
+   (network-output-cache :initarg network-output-cache :accessor network-output-cache :type list :initform nil
+                         :documentation "an associate list about output layer id's and fixed length fifo's to cache each output vector")
    (output-layers :initarg :output-layers :accessor output-layers :type list :initform nil
                   :documentation "$U$ in the textbook, the list of layer id's of all the output layers")
    (raw-input-layers :initarg :raw-input-layers :accessor raw-input-layers :type list :initform nil
@@ -354,7 +358,9 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                (output-layers output-layers)
                (final-output-layers final-output-layers)
                (max-network-input-delay max-network-input-delay)
-               (max-layer-input-delay max-layer-input-delay)) lddn
+               (max-layer-input-delay max-layer-input-delay)
+               (network-input-cache network-input-cache)
+               (network-output-cache network-output-cache)) lddn
     ;; initialize the parts in the layers
     (dolist (layer layers)
       (with-slots ((IWs network-input-weights)
@@ -423,9 +429,17 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                                                     collect (tdl-fifo-length
                                                              (get-layer-input (get-layer lddn to-layer-id) layer-id))))
                                        len (list 1))))))
-
-
-
+    ;; NEXT, define fixed-fifo to cache network inputs and layer inputs
+    (setf network-input-cache
+          (loop for (id delay) in max-network-input-delay
+                collect (list id (make-fixed-len-unsafe-fifo
+                                  delay
+                                  :content (make-zeros (get-input-dimension lddn id) 1)))))
+    (setf network-output-cache
+          (loop for (id delay) in max-layer-input-delay
+                collect (list id (make-fixed-len-unsafe-fifo
+                                  delay
+                                  :content (make-zeros (get-neurons (get-layer lddn id)) 1)))))
 
     ))
 
