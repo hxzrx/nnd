@@ -207,6 +207,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
   "should call when the net-input is ready. side effect: will modify deriv-F-n slot of `layer"
   (calc-deriv-f-n! layer))
 
+(defmethod get-exist-lw-from-output ((layer lddn-layer))
+  (exist-lw-from-output layer))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 
@@ -308,7 +311,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (layers (loop for layer-cfg in (getf config :layer)
                        collect (make-lddn-layer layer-cfg)))
          (raw-input-layers (remove-duplicates (loop for (id layer-ids) in input-to
-                                                append layer-ids)))
+                                                    append layer-ids)))
+
          (final-output-layers (getf config :output))
          (simul-order (getf config :order))
          (bp-order (reverse simul-order)))
@@ -329,6 +333,7 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
     (dolist (layer layers)
       (with-slots ((IWs network-input-weights)
                    (LWs layer-weights)
+
                    (link-to link-to)
                    (layer-inputs layer-inputs)
                    (network-inputs network-inputs)) layer
@@ -362,8 +367,15 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
         (loop for (input-id tdl) in network-inputs
               do (dotimes (i (tdl-fifo-length tdl))
                    (add-tdl-content tdl (make-zeros (get-input-dimension lddn input-id) 1))))
-        ))))
-
+        )))
+  ;; set $U$, output-layers
+  (with-slots ((U-list output-layers)
+               (layers layers)
+               (final-output-layers final-output-layers)) lddn
+    (setf U-list (reduce #'union (cons final-output-layers
+                                       (loop for layer in layers
+                                             collect (get-exist-lw-from-output layer)))))
+    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; pretty print lddn object
