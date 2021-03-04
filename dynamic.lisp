@@ -19,6 +19,8 @@
    (bias :initarg :bias :accessor bias :type (or list number) :documentation "$b^m$, bias of this layer")
    (net-input :initarg :net-input :accessor net-input :type (or list number) :initform nil
               :documentation "$n^m$, the net input of this layer")
+   (deriv-F-n :initarg :deriv-F-n :accessor deriv-F-n :type list :initform nil
+              :documentation "$\dot{F}^u(n^u(t))$, an diag matrix with diag elements the deriv of transfer to each element of the net input of this layer")
    (transfer :initarg :transfer :accessor transfer :type function :documentation "$f^m$, transfer function of this layer")
    (derivative-fun :initarg :derivative-fun :accessor derivative-fun :type function
                    :documentation "derivative function of the transfer function")
@@ -32,6 +34,8 @@
                :documentation "$L_m^f$, a list of id of layers that directly connect forward to this layer")
    (link-backward :initarg :link-backward :accessor link-backward :type list :initform nil
                   :documentation "$L_m^b$, a list of indices of layers that are directly connected backwards to this layer (or to which this layer connects forward) and that contain NO DELAYS in the connection, this is a subset of `link-to but has no delays")
+   (exist-lw-from-output :initarg :exist-lw-from-output :accessor exist-lw-from-output :type list :initform nil
+                         :documentation "$E_{LW}^U$, the id of the output layers that connect to this layer (which will always be an input layer) with at least some nonzero delay")
    )
   (:documentation "A layer of a dynamic network.
 There are 4 types of slots,
@@ -57,7 +61,9 @@ this function will only initialize the slots that do not share data outside of t
          (layer-weights (make-weights-from-config layer-weights-config)) ;initialize default weights when provided
          (layer-inputs (make-layer-inputs-from-config layer-weights-config))
          (link-forward (loop for (id nil) in layer-weights collect id))
-         (link-to (getf config :link-to)))
+         (link-to (getf config :link-to))
+         (exist-lw-from-output (make-exist-lw-from-output layer-weights))
+         )
     (make-instance 'lddn-layer
                  :id id :neurons neurons :bias bias :transfer transfer :derivative-fun derivative
                  :link-to link-to
@@ -66,7 +72,14 @@ this function will only initialize the slots that do not share data outside of t
                  :layer-weights layer-weights
                  :layer-inputs layer-inputs
                  :link-forward link-forward
+                 :exist-lw-from-output exist-lw-from-output
                  )))
+
+(defun make-exist-lw-from-output (layer-weight)
+  "initialize slot exist-lw-from-output, the parameter is layer-weight"
+  (loop for (id tdl) in layer-weight
+        when (tdl-has-delay? tdl)
+        collect id))
 
 (defun make-weights-from-config (weights-config)
   "make an associate list with id and tdls of weights, can be used to initialize network-input-weights and layer-weights
@@ -113,12 +126,13 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 (defmethod format-string ((layer lddn-layer))
   "return a format string about the object"
-  (format nil "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d"
+  (format nil "~&id: ~d, neurons: ~d, link-to: ~d, link-forward: ~d, link-backward: ~d~%Exists LW from U, E_LW^U: ~d~%bias: ~d~%network-inputs: ~d~%network-input-weights: ~d~%layer-inputs: ~d~%layer-weights: ~d"
             (id layer)
             (neurons layer)
             (format nil "(~{~d~^ ~})" (link-to layer))
             (format nil "(~{~d~^ ~})" (link-forward layer))
             (format nil "(~{~d~^ ~})" (link-backward layer))
+            (format nil "(~{~d~^ ~})" (exist-lw-from-output layer))
             (alexandria:when-let (b (bias layer))
               (if (listp b) (format nil "(~{~,3f~^ ~})" (first (transpose b)))
                   (format nil "(~,3f)" b)))
@@ -172,6 +186,26 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 (defmethod get-link-backward ((layer lddn-layer))
   (link-backward layer))
 
+(defmethod get-net-input ((layer lddn-layer))
+  (net-input layer))
+
+(defmethod set-net-input! ((layer lddn-layer) value)
+  (with-slots ((net-input net-input)) layer
+    (setf net-input value)))
+
+(defmethod get-deriv-F-n ((layer lddn-layer))
+  (deriv-F-n layer))
+
+(defmethod calc-deriv-F-n! ((layer lddn-layer))
+  "should call when the net-input is ready. side effect: will modify deriv-F-n slot of `layer"
+  (with-slots ((deriv derivative-fun)
+               (net-input net-input)
+               (deriv-F-n deriv-F-n)) layer
+    (setf deriv-F-n (derivative-diag deriv (if (numberp net-input) net-input (first (transpose net-input)))))))
+
+(defmethod set-deriv-F-n! ((layer lddn-layer))
+  "should call when the net-input is ready. side effect: will modify deriv-F-n slot of `layer"
+  (calc-deriv-f-n layer))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 
@@ -413,7 +447,6 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
 (defmethod get-output-layers ((lddn lddn))
   (output-layers lddn))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmethod randomize-input-weights! ((lddn lddn) (layer lddn-layer) input-id)
@@ -441,12 +474,16 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                  (add-tdl-content tdl nil))))))
 
 (defmethod calc-neuron-output! ((lddn lddn) (layer lddn-layer))
-  "calc the output of this layer, and send the result to the layers it connects to"
-  (let ((res (funcall (transfer layer) (calc-layer-net-input layer))))
+  "calc the output of this layer, and send the result to the layers it connects to.
+Side effect: will modify net-input slot of `layer, will modify neuron-output slot of `layer, will send the result to the layers it connect to, will modify deriv-F-n slot"
+  (let* ((net-input (calc-layer-net-input layer))
+         (res (funcall (transfer layer) net-input)))
+    (set-net-input! layer net-input)
     (set-neuron-output! layer res)
+    (calc-deriv-F-n! layer)
     (loop for send-to-id in (link-to layer)
           do (add-tdl-content (get-layer-input (get-layer lddn send-to-id) (get-layer-id layer))
-                                     res))
+                              res))
     ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -464,44 +501,66 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
     (loop for out-layer-id in output-layers ;collect network output result
           collect (list out-layer-id (get-neuron-output (get-layer lddn out-layer-id))))))
 
+(defmethod collect-init-sens-matrix-alist ((lddn lddn))
+  "collect the sens matrix $S^{u,u}$ for all layer, associate them with (list u u)"
+  (with-slots ((layers layers)) lddn
+    (loop for layer in layers
+          collect (list (list (get-layer-id layer) (get-layer-id layer))
+                        (get-deriv-F-n layer)))))
+
+
 
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
-  (let* ((sample-num (length samples))
+  (let* (;(sample-num (length samples))
          (bp-order (get-bp-order lddn))
          (simul-order (get-simul-order lddn))
-         (input-layers (get-input-layers lddn))
-         (output-layers (get-output-layers lddn))
+         (input-layers (get-input-layers lddn)) ;$X$
+         (output-layers (get-output-layers lddn)) ;$U$
          (exist-sens-layer nil) ; $E_S(u)$, associate list which associate the layers that has non-zero sensitivities with the key
-         (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
-         (partial-derivative)
+         (sens-matrix-alist nil); $S^{u,m}$ alist associates with {u,m} and the Sensitivity matrix, the key is (list u,m)
          )
-    (dotimes (i (1- sample-num) (format t "all samples were processed"))
-      (let* ((output-layers-tmp nil)  ; $U^'=\phi$
+    (dolist (sample samples)
+      (calc-lddn-output! lddn (first sample)) ;forward propagation to make an output and get the intermediate results
+      (setf sens-matrix-alist (collect-init-sens-matrix-alist lddn))
+      (let* ((output-layers-tmp nil)  ; $U'$
+             (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
              )
-        (dolist (u output-layers)
-          (when u (alist-push-or-replace! exist-sens-layer u nil))
-          (when u (alist-push-or-replace! exist-sens-input-layer u nil)))
-        (dolist (m bp-order) ;For m decremented through the BP order
+        (dolist (u output-layers) ;this dolist seems not necessarily since they are default nil if not specified
+          (assert (member u simul-order)) ;make sure u is not nil, will remove this line later
+          (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u nil)) ; $E_S(u) = \Phi$
+          (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u nil))) ; $E_S^X(u)=\Phi$
+
+        (dolist (m bp-order) ;for m decremented through the BP order
           (let* ((layer-m (get-layer lddn m))
-                 (link-backward-m (get-link-backward layer-m))
-                 (F^m-n^m)
+                 (link-backward-m (get-link-backward layer-m)) ;$L_m^b$
+                 ;;(derivF-n (get-deriv-f-n layer-m)) ;(F(n(t)))
                  )
             (dolist (u output-layers-tmp)
-              (alexandria:when-let (exi-sens-u (assoc u exist-sens-layer))
-                (when (intersection (second exi-sens-u) link-backward-m) ;when the intersection is not empty
-                  ;;calc $S^{u,m}$
-                  ;;......
-                  ;;......
-                  (alist-push-or-replace! exist-sens-layer u m)
+              (alexandria:when-let (exi-sens-u (second (assoc u exist-sens-layer)))
+                (alexandria:when-let (intersect (intersection exi-sens-u link-backward-m))
+                  (let ((sens-matrix-u-m
+                          (matrix-product ;calc $S^{u,m}$, equation (14.38)
+                           (reduce #'matrix-add
+                                   (loop for l in intersect
+                                         collect
+                                         (matrix-product (second (assoc (list u l) sens-matrix-alist :test #'equal))
+                                                         (first (get-tdl-effective-content
+                                                                 (get-layer-weight (get-layer lddn l) m))))))
+                           (second (assoc (list m m) sens-matrix-alist :test #'equal)))))
+                    (format t "~&Sensitivity matrix $S^{~d,~d}(t)$ = ~d~%" u m sens-matrix-u-m)
+                    (setf sens-matrix-alist
+                          (alist-create-or-adjoin sens-matrix-alist (list u m) sens-matrix-u-m :test #'equal)))
+                  (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
                   (when (member m input-layers)
-                    (alist-adjoin-to-value-set! exist-sens-input-layer u m)))))
+                    (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u m))))))
             (when (member m output-layers)
-              ;;calc S^{m,m}=F
-              (adjoin m output-layers-tmp)
-              (alist-adjoin-to-value-set! exist-sens-layer m m)
+              ;;the calculating of $S^{m,m}(t)=\dot{F}^m(n^m(t))$ was batch set after calc-lddn-output!
+              (setf output-layers-tmp (adjoin m output-layers-tmp))
+              (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer m m))
               (when (member m input-layers)
-                (alist-adjoin-to-value-set! exist-sens-input-layer m m)))))
+                (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer m m))))
+            )) ;end for dolist m
 
         (dolist (m simul-order)
 
@@ -677,5 +736,7 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
     (format t "~&lddn's inputs: ~d~%" (inputs lddn))
     (format t "~&input-to: ~d~%" (input-to lddn))
     (format t "~&raw-input-layers: ~d~%" (raw-input-layers lddn))
+    (format t "~&output-layers: ~d~%" (output-layers lddn))
     (format t "~&final-output-layers: ~d~%" (final-output-layers lddn))
+    (format t "~&sens matrices alist: ~{~d~%~}~%" (collect-init-sens-matrix-alist lddn))
     (format t "~d~%" output)))
