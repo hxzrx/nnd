@@ -243,6 +243,18 @@ consisting of the input signal at the current time and at delays of from 1 to R-
           when (plist-match record query-plist :key key-compare :key-test key-test :value-test val-test)
             collect record)))
 
+(defmethod query-tabular-db-value ((tdb tabular-db) (query-plist list) target-key)
+  "return the target-value with the `query-plist' and return the value respected to `target-key',
+the `query-plist' should be necessary to fetch only ONE record, and this function should return only one value"
+  (with-slots ((key-compare key-compare)
+               (key-test key-test)) tdb
+    (let* ((record (query-tabular-db tdb query-plist))
+           (len (length record)))
+      (cond ((= len 1) (second (find-cdr record target-key :key key-compare :test key-test)))
+            ((= len 0) (warn "Found no records for query: ~d" query-plist))
+            (t (warn "Found ~d records for query: ~d" len query-plist))))))
+
+
 (defun check-keys-valid? (keys-list plist &key (test #'eql))
   "check if the keys in `plist' are all valid"
   (if plist
