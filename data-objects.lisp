@@ -217,9 +217,13 @@ consisting of the input signal at the current time and at delays of from 1 to R-
    (max-rid :initarg :max-rid :accessor max-rid :type integer :initform 0 :documentation "an auto increment number denoting the maximum row id at the present time, only 'insert' operation can modify this slot!"))
   (:documentation "a simple tabular database with each record a property list"))
 
-(defun make-tabular-db (&rest keys)
+(defun make-tabular-db (keys &key (key-compare #'identity) (key-test #'eql) (value-test #'equal))
+  "keys is a list of the key in db"
   (make-instance 'tabular-db
-                 :valid-keys keys))
+                 :valid-keys keys
+                 :key-compare key-compare
+                 :key-test key-test
+                 :value-test value-test))
 
 (defmethod initialize-instance :after ((tdb tabular-db) &key &allow-other-keys)
   (with-slots ((vk valid-keys)
