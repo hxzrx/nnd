@@ -319,6 +319,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                           :documentation "an associate list about the layer ids and the max delays for each layer input, used in (14.43)")
    (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
    (bp-order :initarg :bp-order :accessor bp-order :type list :initform nil :documentation "backpropagation order")
+   (sens-matrix-db :initarg :sens-matrix-db :accessor sens-matrix-db :type tabular-db
+                   :documentation "sensitivity matrices")
    (F/a-deriv-exp-db :initarg :F/a-deriv-exp-db :accessor F/a-deriv-exp-db :type tabular-db
                      :documentation "explicit partial derivatives of performance function to the output of the output layers")
    (a/x-deriv-db :initarg :a/x-deriv-db :accessor a/x-deriv-db :type tabular-db
@@ -342,10 +344,10 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (final-output-layers (getf config :output))
          (simul-order (getf config :order))
          (bp-order (reverse simul-order))
+         (sens-matrix-db (make-tabular-db (list :from :to :value))) ;S^{:to,:from}
          (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value)))
-         ;;param-type is {:lw :iw :b}
-         (a/x-deriv-db (make-tabular-db (list :output-layer :time :param-layer :param-type :delay :value)))
-         (F/x-deriv-db (make-tabular-db (list :param-layer :param-type :delay :value)))
+         (a/x-deriv-db (make-tabular-db (list :layer :time :param-type :from :to :delay :value))) ;param-type is {:lw :iw :b}
+         (F/x-deriv-db (make-tabular-db (list :layer :param-type :delay :value)))
          )
     (make-instance 'lddn :inputs inputs
                          :input-to input-to
@@ -354,6 +356,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                          :final-output-layers final-output-layers
                          :simul-order simul-order
                          :bp-order bp-order
+                         :sens-matrix-db sens-matrix-db
                          :F/a-deriv-exp-db F/a-deriv-exp-db
                          :a/x-deriv-db a/x-deriv-db
                          :F/x-deriv-db F/x-deriv-db
@@ -631,10 +634,19 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 
 (defmethod collect-init-sens-matrix-alist ((lddn lddn))
   "collect the sens matrix $S^{u,u}$ for all layer, associate them with (list u u)"
-  (with-slots ((layers layers)) lddn
+  (with-slots ((layers layers)
+               (sens-tdb sens-matrix-db)) lddn
     (loop for layer in layers
           collect (list (list (get-layer-id layer) (get-layer-id layer))
                         (list (get-deriv-F-n layer))))))
+
+(defmethod calc-init-sens-insert-db! ((lddn lddn))
+  "calc sensitive matrix $S^{u,u}$ for all layer and insert into the db of the slot"
+  (with-slots ((layers layers)
+               (sens-tdb sens-matrix-db)) lddn
+    (loop for layer in layers
+          do (insert-tabular-db! sens-tdb (list :from (get-layer-id layer) :to (get-layer-id layer)
+                                                :value (get-deriv-F-n layer))))))
 
 (defmethod deriv-neoru-output-to-iw ((lddn lddn)  output-layer-u input-layer-m inter-layer-l)
   "equation (14.42), explicit partial derivative of neuro output of layer u to "
@@ -712,6 +724,9 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 
         (dolist (m simul-order)
           (format t "~&simulation order, layer: ~d~%" m)
+
+
+
 
           )
 
