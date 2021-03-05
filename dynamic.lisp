@@ -319,6 +319,13 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                           :documentation "an associate list about the layer ids and the max delays for each layer input, used in (14.43)")
    (simul-order :initarg :simul-order :accessor simul-order :type list :initform nil :documentation "simulation order")
    (bp-order :initarg :bp-order :accessor bp-order :type list :initform nil :documentation "backpropagation order")
+   (F/a-deriv-exp-db :initarg :F/a-deriv-exp-db :accessor F/a-deriv-exp-db :type tabular-db
+                     :documentation "explicit partial derivatives of performance function to the output of the output layers")
+   (a/x-deriv-db :initarg :a/x-deriv-db :accessor a/x-deriv-db :type tabular-db
+                 :documentation "partial derivatives of output of the output layers to network parameters")
+   (F/x-deriv-db :initarg :F/x-deriv-db :accessor F/x-deriv-db :type tabular-db
+                 :documentation "partial derivatives of performance function to network parameters")
+
    )
   (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
 
@@ -332,10 +339,14 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                        collect (make-lddn-layer layer-cfg)))
          (raw-input-layers (remove-duplicates (loop for (id layer-ids) in input-to
                                                     append layer-ids)))
-
          (final-output-layers (getf config :output))
          (simul-order (getf config :order))
-         (bp-order (reverse simul-order)))
+         (bp-order (reverse simul-order))
+         (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value)))
+         ;;param-type is {:lw :iw :b}
+         (a/x-deriv-db (make-tabular-db (list :output-layer :time :param-layer :param-type :delay :value)))
+         (F/x-deriv-db (make-tabular-db (list :param-layer :param-type :delay :value)))
+         )
     (make-instance 'lddn :inputs inputs
                          :input-to input-to
                          :layers layers
@@ -343,6 +354,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                          :final-output-layers final-output-layers
                          :simul-order simul-order
                          :bp-order bp-order
+                         :F/a-deriv-exp-db F/a-deriv-exp-db
+                         :a/x-deriv-db a/x-deriv-db
+                         :F/x-deriv-db F/x-deriv-db
                          :config config)
     ))
 
@@ -622,8 +636,9 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
           collect (list (list (get-layer-id layer) (get-layer-id layer))
                         (list (get-deriv-F-n layer))))))
 
-(defmethod deriv-neoru-output-to-iw ((lddn lddn) input-layer-id network-input-l input-to-layer-m)
+(defmethod deriv-neoru-output-to-iw ((lddn lddn)  output-layer-u input-layer-m inter-layer-l)
   "equation (14.42), explicit partial derivative of neuro output of layer u to "
+
   )
 
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
@@ -635,13 +650,27 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
          (output-layers (get-output-layers lddn)) ;$U$
          (exist-sens-layer nil) ; $E_S(u)$, associate list which associate the layers that has non-zero sensitivities with the key
          (sens-matrix-alist nil); $S^{u,m}$ alist associates with {u,m} and the Sensitivity matrix, the key is (list u,m)
+         ;;(partial-deriv-to-output-sum nil) ;$\frac{\partial^e F}{\partial a^u(t)}$, summation for all samples
          )
     (dolist (sample samples)
       (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
       (setf sens-matrix-alist (collect-init-sens-matrix-alist lddn))
+
       (let* ((output-layers-tmp nil)  ; $U'$
+             (partial-deriv-to-output nil) ;alist about output-layer-id and ∂Fᵉ/∂aᵘ for explicit derivatives
+             (target (third sample))
              (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
              )
+
+        ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
+        (setf partial-deriv-to-output
+              (with-slots ((output-layers output-layers)
+                           (final-output-layers final-output-layers)) lddn
+                (loop for u in output-layers
+                      collect (list u (partial-deriv-SSE target
+                                                         (get-neuron-output (get-layer lddn u))
+                                                         (if (member u final-output-layers) t nil))))))
+
         (dolist (u output-layers) ;this dolist seems not necessarily since they are default nil if not specified
           (assert (member u simul-order)) ;make sure u is not nil, will remove this line later
           (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u nil)) ; $E_S(u) = \Phi$
@@ -683,6 +712,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 
         (dolist (m simul-order)
           (format t "~&simulation order, layer: ~d~%" m)
+
           )
 
         ))))
@@ -862,7 +892,11 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 
 
 (defun test-calc-bptt-gradient-p14.1 ()
+  "each sample has this format (list (list input-id input-vector target)^+), all samples are a list of samples,
+for the case of multiple targets (more than one output to compare with the targets), `target will be a list,
+for simplicity, we assume that where's only one target.
+"
   (let* ((lddn (make-lddn :config lddn-config-p14.1))
-         (p (list '((1 ((1) (1) (1)) 1)))))
+         (samples (list '((1 ((1) (1) (1)) 1)))))
     ;(calc-lddn-output! lddn (first P))))
-    (calc-bptt-gradient lddn p)))
+    (calc-bptt-gradient lddn sample)))
