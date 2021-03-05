@@ -289,3 +289,7 @@ it's better to do plist-match before update-by-plist."
     (setf db (loop for record in db
                    when (null (plist-match record query-plist :key key-compare :key-test key-test :value-test val-test))
                      collect record))))
+
+(defmethod truncate-tabular-db! ((tbd tabular-db))
+  (with-slots ((db db)) tbd
+    (setf db nil)))
