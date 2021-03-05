@@ -488,7 +488,7 @@ eg. (getf-> '(:a (:b (:c 1))) :a :b :c)  ->  1"
           (list (list key nil)))))
 
 
-(defun explicit-partial-derivative (fx parameter-list is-explicit)
+(defun partial-derivative (fx parameter-list is-explicit)
   "`fx is a list of functions corresponding to the partial derivatives of each element of the `parameter-list,
 if `is-explicit is nil return a zeros vector of length of the dimension of `parameter-list,
 this function return a column vector about the partial derivatives.
@@ -497,3 +497,11 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
   (if is-explicit
       (transpose (list (mapcar #'funcall fx parameter-list)))
       (make-zero-vector (length parameter-list))))
+
+(defun partial-deriv-SSE (target output is-explicit)
+  "partial derivatie of SSE about "
+  (if is-explicit
+      (transpose (list (loop for tq in target
+                             for aq in output
+                             collect (* -2 (- tq aq)))))
+      (make-zero-vector (car (matrix-size output)))))
