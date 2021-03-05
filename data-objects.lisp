@@ -291,5 +291,7 @@ it's better to do plist-match before update-by-plist."
                      collect record))))
 
 (defmethod truncate-tabular-db! ((tbd tabular-db))
-  (with-slots ((db db)) tbd
-    (setf db nil)))
+  (with-slots ((db db)
+               (max-rid max-rid)) tbd
+    (setf db nil)
+    (setf max-rid 0)))
