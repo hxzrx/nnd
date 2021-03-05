@@ -500,8 +500,10 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
 
 (defun partial-deriv-SSE (target output is-explicit)
   "partial derivatie of SSE about "
-  (if is-explicit
-      (transpose (list (loop for tq in target
-                             for aq in output
-                             collect (* -2 (- tq aq)))))
-      (make-zero-vector (car (matrix-size output)))))
+  (if (listp target)
+      (if is-explicit
+          (transpose (list (loop for tq in target
+                                 for aq in output
+                                 collect (* -2 (- tq aq)))))
+          (make-zero-vector (car (matrix-size output))))
+      (if is-explicit (* -2 (- target output)) 0)))
