@@ -516,11 +516,11 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
           (find-cdr (cdr list) item :key key :test test))
       nil))
 
-(defun plist-match (template-plist query-plist &optional (key #'identity) (key-test #'eql) (value-test #'eql))
+(defun plist-match (template-plist query-plist &key (key #'identity) (key-test #'eql) (value-test #'eql))
   "return t if testing every k/v in query-plist is passed by the test in the template-plist else return nil"
   (if query-plist
       (alexandria:if-let (found (find-cdr template-plist (pop query-plist) :key key :test key-test))
         (and (funcall value-test (second found) (pop query-plist))
-             (plist-match template-plist query-plist key key-test value-test))
+             (plist-match template-plist query-plist :key key :key-test key-test :value-test value-test))
         nil)
       t))
