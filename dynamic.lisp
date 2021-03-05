@@ -250,12 +250,12 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                             collect (matrix-product each-delay-weight each-delay-input))))))
     (bias layer))))
 
-(defmethod add-network-input-to-layer ((layer lddn-layer) raw-input-alist)
+(defmethod add-network-input-to-layer ((layer lddn-layer) raw-input-plist)
   "add the network's raw inputs to the network-input's tdl"
   (with-slots ((input network-inputs)) layer
     (loop for (lth-in tdl) in input
-          do (alexandria:when-let (in-vec (assoc lth-in raw-input-alist))
-               (add-tdl-content tdl (second in-vec))
+          do (alexandria:when-let (in-vec (getf raw-input-plist lth-in)) ;(in-vec (assoc lth-in raw-input-alist))
+               (add-tdl-content tdl in-vec)
                ))))
 
 (defmethod layer-link-delay? ((layer-from lddn-layer) (layer-to lddn-layer))
@@ -599,10 +599,10 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
     res
     ))
 
-(defmethod add-network-input-to-cache! ((lddn lddn) raw-input-alist)
+(defmethod add-network-input-to-cache! ((lddn lddn) raw-input-plist)
   "add the network's raw inputs to the network-input-cache slot of lddn"
   (with-slots ((fifo-alist network-input-cache)) lddn
-    (loop for (id input-vector) in raw-input-alist
+    (loop for (id . input-vector) in (alexandria:plist-alist (first raw-input-plist))
           do (add-fixed-fifo (second (assoc id fifo-alist)) input-vector))))
 
 (defmethod add-network-output-to-cache! ((lddn lddn) output-layer-id output-vector)
@@ -618,15 +618,15 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmethod calc-lddn-output! ((lddn lddn) input-alist)
+(defmethod calc-lddn-output! ((lddn lddn) input-plist)
   "calc the output of the lddn network providing a list of input vectors"
   (with-slots ((layers layers)
                (input-layers raw-input-layers)
                (output-layers final-output-layers)
                (simul-order simul-order)) lddn
     (dolist (id input-layers) ;send input vector to the raw input layers
-      (add-network-input-to-layer (get-layer lddn id) input-alist)
-      (add-network-input-to-cache! lddn input-alist))
+      (add-network-input-to-layer (get-layer lddn id) input-plist)
+      (add-network-input-to-cache! lddn input-plist))
     (dolist (layer-id simul-order)
       (calc-neuron-output! lddn (get-layer lddn layer-id)))
     (loop for out-layer-id in output-layers ;collect network output result
@@ -670,13 +670,16 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
         (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
         (calc-init-sens-insert-db! lddn) ;calc $S^{u,u}$ for all u
         (let* ((output-layers-tmp nil)  ; $U'$
-               (target (third sample))
+               (target (second sample))
                (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
                )
           ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
           (loop for u in output-layers
+                ;;when (getf target u)
                 do (insert-tabular-db! F/a-db (list :output-layer u :time time-step
-                                                    :value (partial-deriv-SSE target
+                                                    :value (partial-deriv-SSE (if (member u final-output-layers)
+                                                                                  (getf target u)
+                                                                                  nil)
                                                                               (get-neuron-output (get-layer lddn u))
                                                                               (if (member u final-output-layers) t nil)))))
           (dolist (u output-layers) ;this dolist seems not necessarily since they are default nil if not specified
@@ -903,11 +906,15 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 
 
 (defun test-calc-bptt-gradient-p14.1 ()
-  "each sample has this format (list (list input-id input-vector target)^+), all samples are a list of samples,
+  "each sample is a list of input and outputs, and it has this format:
+(list (list  input-id1 input-vector1 input-id2 input-vector2 ...)
+      (list output-id1 target-vector1 output-id2 target-vector2 ...))
+all samples are a list of samples,
 for the case of multiple targets (more than one output to compare with the targets), `target will be a list,
 for simplicity, we assume that where's only one target.
 "
   (let* ((lddn (make-lddn :config lddn-config-p14.1))
-         (samples (list '((1 ((1) (1) (1)) 1)))))
+         (samples (list '((1 ((1) (1) (1))) (10 1)) )))
+    (format t "~&All samples: ~d~%" samples)
     ;(calc-lddn-output! lddn (first P))))
     (calc-bptt-gradient lddn samples)))
