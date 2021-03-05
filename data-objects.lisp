@@ -205,7 +205,14 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 (defclass tabular-db ()
   ((db :initarg :db :accessor db :type list :initform nil :documentation "a list of property list with k/v across each list")
    (valid-keys :initarg :valid-keys :accessor valid-keys :type list :initform nil :documentation "a list of valid-keys")
-   (imp-key :initarg :imp-key :accessor imp-key :type symbol :initform :rid
+
+   (key-compare :initarg :key-compare :accessor key-compare :type function :initform #'identity
+                :documentation "in querying, two keys' should be preprocessed before funcall key-test")
+   (key-test :initarg :key-test :accessor key-test :type function :initform #'eql
+             :documentation "test if two keys are equal")
+   (value-test :initarg :value-test :accessor value-test :type function :initform #'eql
+               :documentation "value test function to get/setf records")
+   (imp-key :initarg :imp-key :accessor imp-key :initform :rid
             :documentation "row id for each db record, implicitly to add to each record when inserting the record")
    (max-rid :initarg :max-rid :accessor max-rid :type integer :initform 0 :documentation "an auto increment number denoting the maximum row id at the present time"))
   (:documentation "a simple tabular database with each record a property list"))
@@ -218,3 +225,16 @@ consisting of the input signal at the current time and at delays of from 1 to R-
   (with-slots ((vk valid-keys)
                (ik imp-key)) tdb
     (setf vk (append vk (list ik)))))
+
+(defmethod get-keys ((tdb tabular-db))
+  (valid-keys tdb))
+
+(defmethod query-tabular-db ((tdb tabular-db) (query-plist list))
+  "fetch all records that match query-plist, which is an property list about the query k/v's"
+  (with-slots ((db db)
+               (key-test key-test)
+               (val-test value-test)
+               (key-compare key-compare)) tdb
+    (loop for record in db
+          when (plist-match record query-plist :key key-compare :key-test key-test :value-test val-test)
+            collect record)))
