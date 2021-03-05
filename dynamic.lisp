@@ -344,9 +344,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (final-output-layers (getf config :output))
          (simul-order (getf config :order))
          (bp-order (reverse simul-order))
-         (sens-matrix-db (make-tabular-db (list :from :to :value))) ;S^{:to,:from}
-         (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value)))
-         (a/x-deriv-db (make-tabular-db (list :layer :time :param-type :from :to :delay :value))) ;param-type is {:lw :iw :b}
+         (sens-matrix-db (make-tabular-db (list :to :from :value))) ;S^{:to,:from}
+         (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
+         (a/x-deriv-db (make-tabular-db (list :layer :time :param-type :to :from :delay :value))) ;param-type is {:lw :iw :b}
          (F/x-deriv-db (make-tabular-db (list :layer :param-type :delay :value)))
          )
     (make-instance 'lddn :inputs inputs
@@ -645,7 +645,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
   (with-slots ((layers layers)
                (sens-tdb sens-matrix-db)) lddn
     (loop for layer in layers
-          do (insert-tabular-db! sens-tdb (list :from (get-layer-id layer) :to (get-layer-id layer)
+          do (insert-tabular-db! sens-tdb (list :to (get-layer-id layer) :from (get-layer-id layer)
                                                 :value (get-deriv-F-n layer))))))
 
 (defmethod deriv-neoru-output-to-iw ((lddn lddn)  output-layer-u input-layer-m inter-layer-l)
@@ -655,82 +655,78 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
-  (let* (;(sample-num (length samples))
-         (bp-order (get-bp-order lddn))
-         (simul-order (get-simul-order lddn))
-         (input-layers (get-input-layers lddn)) ;$X$
-         (output-layers (get-output-layers lddn)) ;$U$
-         (exist-sens-layer nil) ; $E_S(u)$, associate list which associate the layers that has non-zero sensitivities with the key
-         (sens-matrix-alist nil); $S^{u,m}$ alist associates with {u,m} and the Sensitivity matrix, the key is (list u,m)
-         ;;(partial-deriv-to-output-sum nil) ;$\frac{\partial^e F}{\partial a^u(t)}$, summation for all samples
+  (let* ((exist-sens-layer nil) ; $E_S(u)$, associate list which associate the layers that has non-zero sensitivities with the key
+         (time-step 0)
          )
-    (dolist (sample samples)
-      (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
-      (setf sens-matrix-alist (collect-init-sens-matrix-alist lddn))
+    (with-slots ((bp-order bp-order)
+                 (simul-order simul-order)
+                 (input-layers input-layers)
+                 (output-layers output-layers)
+                 (final-output-layers final-output-layers)
+                 (sens-db sens-matrix-db)
+                 (F/a-db F/a-deriv-exp-db)) lddn
+      (dolist (sample samples)
+        (incf time-step)
+        (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
+        (calc-init-sens-insert-db! lddn) ;calc $S^{u,u}$ for all u
+        (let* ((output-layers-tmp nil)  ; $U'$
+               (target (third sample))
+               (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
+               )
+          ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
+          (loop for u in output-layers
+                do (insert-tabular-db! F/a-db (list :output-layer u :time time-step
+                                                    :value (partial-deriv-SSE target
+                                                                              (get-neuron-output (get-layer lddn u))
+                                                                              (if (member u final-output-layers) t nil)))))
+          (dolist (u output-layers) ;this dolist seems not necessarily since they are default nil if not specified
+            (assert (member u simul-order)) ;make sure u is not nil, will remove this line later
+            (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u nil)) ; $E_S(u) = \Phi$
+            (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u nil))) ; $E_S^X(u)=\Phi$
 
-      (let* ((output-layers-tmp nil)  ; $U'$
-             (partial-deriv-to-output nil) ;alist about output-layer-id and ∂Fᵉ/∂aᵘ for explicit derivatives
-             (target (third sample))
-             (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
-             )
+          (dolist (m bp-order) ;for m decremented through the BP order
+            (format t "~&bp-order, layer: ~d~%" m)
+            (let* ((layer-m (get-layer lddn m))
+                   (link-backward-m (get-link-backward layer-m))) ;$L_m^b$
+              (dolist (u output-layers-tmp)
+                (alexandria:when-let (exi-sens-u (second (assoc u exist-sens-layer)))
+                  (alexandria:when-let (intersect (intersection exi-sens-u link-backward-m))
+                    ;;calc $S^{u,m}$, equation (14.38)
+                    (let ((sens-matrix-u-m
+                            (matrix-product
+                             (reduce #'matrix-add
+                                     (loop for l in intersect
+                                           collect
+                                           (matrix-product
+                                            (query-tabular-db-value sens-db (list :to u :from l) :value)
+                                            (first (get-tdl-effective-content
+                                                    (get-layer-weight (get-layer lddn l) m))))))
+                             (query-tabular-db-value sens-db (list :to m :from m) :value)
+                             )))
+                      (insert-tabular-db! sens-db (list :to u :from m :value sens-matrix-u-m)))
 
-        ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
-        (setf partial-deriv-to-output
-              (with-slots ((output-layers output-layers)
-                           (final-output-layers final-output-layers)) lddn
-                (loop for u in output-layers
-                      collect (list u (partial-deriv-SSE target
-                                                         (get-neuron-output (get-layer lddn u))
-                                                         (if (member u final-output-layers) t nil))))))
-
-        (dolist (u output-layers) ;this dolist seems not necessarily since they are default nil if not specified
-          (assert (member u simul-order)) ;make sure u is not nil, will remove this line later
-          (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u nil)) ; $E_S(u) = \Phi$
-          (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u nil))) ; $E_S^X(u)=\Phi$
-
-        (dolist (m bp-order) ;for m decremented through the BP order
-          (format t "~&bp-order, layer: ~d~%" m)
-          (let* ((layer-m (get-layer lddn m))
-                 (link-backward-m (get-link-backward layer-m)) ;$L_m^b$
-                 ;;(derivF-n (get-deriv-f-n layer-m)) ;(F(n(t)))
-                 )
-            (dolist (u output-layers-tmp)
-              (alexandria:when-let (exi-sens-u (second (assoc u exist-sens-layer)))
-                (alexandria:when-let (intersect (intersection exi-sens-u link-backward-m))
-                  ;;calc $S^{u,m}$, equation (14.38)
-
-                  (let ((sens-matrix-u-m
-                          (matrix-product
-                           (reduce #'matrix-add
-                                   (loop for l in intersect
-                                         collect
-                                         (matrix-product (first (second (assoc (list u l) sens-matrix-alist :test #'equal)))
-                                                         (first (get-tdl-effective-content
-                                                                 (get-layer-weight (get-layer lddn l) m))))))
-                           (first (second (assoc (list m m) sens-matrix-alist :test #'equal))))))
-                    (setf sens-matrix-alist ;storage
-                          (alist-create-or-adjoin sens-matrix-alist (list u m) sens-matrix-u-m :test #'equal)))
-                  (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
-                  (when (member m input-layers)
-                    (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u m)))
-                  )))
-            (when (member m output-layers)
-              ;;the calculating of $S^{m,m}(t)=\dot{F}^m(n^m(t))$ was batch set after calc-lddn-output!
-              (setf output-layers-tmp (adjoin m output-layers-tmp))
-              (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer m m))
-              (when (member m input-layers)
-                (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer m m))))
-            )) ;end for dolist m
-
-        (dolist (m simul-order)
-          (format t "~&simulation order, layer: ~d~%" m)
+                    (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
+                    (when (member m input-layers)
+                      (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u m)))
+                    )))
+              (when (member m output-layers)
+                ;;the calculating of $S^{m,m}(t)=\dot{F}^m(n^m(t))$ was batch set after calc-lddn-output!
+                (setf output-layers-tmp (adjoin m output-layers-tmp))
+                (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer m m))
+                (when (member m input-layers)
+                  (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer m m))))
+              )) ;end for dolist m
+          (format t "~&sens db:~&~d~%" sens-db)
+          (format t "~%~%F/a-db:~&~d~%" F/a-db)
+          (dolist (m simul-order)
+            (format t "~&simulation order, layer: ~d~%" m)
 
 
 
 
-          )
+            )
 
-        ))))
+          )))))
 
 
 
@@ -914,4 +910,4 @@ for simplicity, we assume that where's only one target.
   (let* ((lddn (make-lddn :config lddn-config-p14.1))
          (samples (list '((1 ((1) (1) (1)) 1)))))
     ;(calc-lddn-output! lddn (first P))))
-    (calc-bptt-gradient lddn sample)))
+    (calc-bptt-gradient lddn samples)))
