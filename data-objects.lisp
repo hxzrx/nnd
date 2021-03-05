@@ -199,3 +199,22 @@ consisting of the input signal at the current time and at delays of from 1 to R-
            (= (tdl-fifo-length tdl) 1)) ;see make-delay-from-config for delay definition
       nil
       t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defclass tabular-db ()
+  ((db :initarg :db :accessor db :type list :initform nil :documentation "a list of property list with k/v across each list")
+   (valid-keys :initarg :valid-keys :accessor valid-keys :type list :initform nil :documentation "a list of valid-keys")
+   (imp-key :initarg :imp-key :accessor imp-key :type symbol :initform :rid
+            :documentation "row id for each db record, implicitly to add to each record when inserting the record")
+   (max-rid :initarg :max-rid :accessor max-rid :type integer :initform 0 :documentation "an auto increment number denoting the maximum row id at the present time"))
+  (:documentation "a simple tabular database with each record a property list"))
+
+(defun make-tabular-db (&rest keys)
+  (make-instance 'tabular-db
+                 :valid-keys keys))
+
+(defmethod initialize-instance :after ((tdb tabular-db) &key &allow-other-keys)
+  (with-slots ((vk valid-keys)
+               (ik imp-key)) tdb
+    (setf vk (append vk (list ik)))))
