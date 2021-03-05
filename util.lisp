@@ -508,19 +508,19 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
           (make-zero-vector (car (matrix-size output))))
       (if is-explicit (* -2 (- target output)) 0)))
 
-(defun find-cdr (list item &key (key #'identity) (test #'eql))
+(defun find-cdr (list item &key (test #'eql))
   "find `item' in `list' and return the cdr of the list from the place, return nil if not find any"
   (if list
-      (if (funcall test (funcall key (car list)) (funcall key item))
+      (if (eql (first list) item)
           list
-          (find-cdr (cdr list) item :key key :test test))
+          (find-cdr (cddr list) item :test test))
       nil))
 
-(defun plist-match (template-plist query-plist &key (key #'identity) (key-test #'eql) (value-test #'eql))
+(defun plist-match (template-plist query-plist &key (test #'eql))
   "return t if testing every k/v in query-plist is passed by the test in the template-plist else return nil"
   (if query-plist
-      (alexandria:if-let (found (find-cdr template-plist (pop query-plist) :key key :test key-test))
-        (and (funcall value-test (second found) (pop query-plist))
-             (plist-match template-plist query-plist :key key :key-test key-test :value-test value-test))
+      (alexandria:if-let (found (find-cdr template-plist (pop query-plist)))
+        (and (funcall test (second found) (pop query-plist))
+             (plist-match template-plist query-plist :test test))
         nil)
       t))
