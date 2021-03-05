@@ -210,11 +210,11 @@ consisting of the input signal at the current time and at delays of from 1 to R-
                 :documentation "in querying, two keys' should be preprocessed before funcall key-test")
    (key-test :initarg :key-test :accessor key-test :type function :initform #'eql
              :documentation "test if two keys are equal")
-   (value-test :initarg :value-test :accessor value-test :type function :initform #'eql
+   (value-test :initarg :value-test :accessor value-test :type function :initform #'equal
                :documentation "value test function to get/setf records")
    (imp-key :initarg :imp-key :accessor imp-key :initform :rid
             :documentation "row id for each db record, implicitly to add to each record when inserting the record")
-   (max-rid :initarg :max-rid :accessor max-rid :type integer :initform 0 :documentation "an auto increment number denoting the maximum row id at the present time"))
+   (max-rid :initarg :max-rid :accessor max-rid :type integer :initform 0 :documentation "an auto increment number denoting the maximum row id at the present time, only 'insert' operation can modify this slot!"))
   (:documentation "a simple tabular database with each record a property list"))
 
 (defun make-tabular-db (&rest keys)
@@ -238,3 +238,50 @@ consisting of the input signal at the current time and at delays of from 1 to R-
     (loop for record in db
           when (plist-match record query-plist :key key-compare :key-test key-test :value-test val-test)
             collect record)))
+
+(defun check-keys-valid? (keys-list plist &key (test #'eql))
+  "check if the keys in `plist' are all valid"
+  (if plist
+      (and (member (first plist) keys-list :test test)
+           (check-keys-valid? keys-list (cddr plist) :test test))
+      t))
+
+(defmethod insert-tabular-db! ((tdb tabular-db) (new-record list))
+  "insert a new record to tdb, `new-record' is a plist"
+  (with-slots ((db db)
+               (keys valid-keys)
+               (key-test key-test)
+               (rid rid)) tdb
+    (if (check-keys-valid? keys new-record :test key-test)
+        (progn (setf db (cons (append (list :rid rid) new-record) db))
+               (incf rid))
+        (warn "there's invalid keys in the record: ~d" new-record))
+    (append (list :rid rid) new-record)))
+
+(defun update-by-plist (raw-plist update-plist &key (key #'identity) (key-test #'eql))
+  "update the values in `raw-plist' from `update-plist', do not need to compare the val.
+it's better to do plist-match before update-by-plist."
+  (loop for (plist-key val) in (alexandria:plist-alist raw-plist)
+        append (alexandria:if-let (found (find-cdr update-plist plist-key :key key :test key-test))
+                 (list plist-key (second found))
+                 (list plist-key val))))
+
+(defmethod update-tabular-db! ((tdb tabular-db) (query-plist list) (update-plist list))
+  "should test if it dit modified db!!!!!!!! if not modified, will delete this record and then nconc"
+  (with-slots ((db db)
+               (key-compare key-compare)
+               (key-test key-test)
+               (val-test value-test)) tdb
+    (loop for record in db
+          when (plist-match record query-plist :key key-compare :key-test key-test :value-test val-test)
+            do (setf record (update-by-plist record update-plist :key key-compare :key-test key-test)))))
+
+(defmethod delete-from-tabular-db! ((tdb tabular-db) (query-plist list))
+  "side effect: modify the slot of db"
+  (with-slots ((db db)
+               (key-compare key-compare)
+               (key-test key-test)
+               (val-test value-test)) tdb
+    (setf db (loop for record in db
+                   when (null (plist-match record query-plist :key key-compare :key-test key-test :value-test val-test))
+                     collect record))))
