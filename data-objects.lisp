@@ -227,7 +227,7 @@ consisting of the input signal at the current time and at delays of from 1 to R-
 (defmethod print-object ((tdb tabular-db) stream)
   (print-unreadable-object (tdb stream :type t)
     (with-slots ((db db)) tdb
-      (format stream "~&Tabular DB:~&~{~d~&~}~%" db))))
+      (format stream "~&Tabular DB:~&~{~d~^~&~}~%" db))))
 
 (defmethod get-keys ((tdb tabular-db))
   (valid-keys tdb))
@@ -247,7 +247,7 @@ the `query-plist' should be necessary to fetch only ONE record, and this functio
                (key-test key-test)) tdb
     (let* ((record (query-tabular-db tdb query-plist))
            (len (length record)))
-      (cond ((= len 1) (second (find-cdr record target-key)))
+      (cond ((= len 1) (getf (car record) target-key))
             ((= len 0) (warn "Found no records for query: ~d" query-plist))
             (t (warn "Found ~d records for query: ~d" len query-plist))))))
 
@@ -267,23 +267,25 @@ the `query-plist' should be necessary to fetch only ONE record, and this functio
     (if (check-keys-valid? keys new-record)
         (progn (setf db (cons (append (list :rid rid) new-record) db))
                (incf rid))
-        (warn "there's invalid keys in the record: ~d" new-record))
+        (warn "there're invalid keys in the record and insert failed: ~d" new-record))
     (append (list :rid (1- rid)) new-record)))
 
 (defun update-by-plist (raw-plist update-plist)
   "update the values in `raw-plist' from `update-plist', do not need to compare the val.
 it's better to do plist-match before update-by-plist."
-  (loop for (update-key val) in (alexandria:plist-alist update-plist)
+  (loop for (update-key . val) in (alexandria:plist-alist update-plist)
         do (setf (getf raw-plist update-key) val))
   raw-plist)
 
-(defmethod update-tabular-db! ((tdb tabular-db) (query-plist list) (update-plist list))
-  "should test if it dit modified db!!!!!!!! if not modified, will delete this record and then nconc"
-  (with-slots ((db db)
-               (value-test value-test)) tdb
-    (loop for record in db
-          when (plist-match record query-plist :test value-test)
-            do (setf record (update-by-plist record update-plist)))))
+(defmethod update-tabular-db! ((tdb tabular-db) (where-plist list) (update-plist list))
+  (let ((updated? nil))
+    (with-slots ((db db)
+                 (value-test value-test)) tdb
+      (loop for record in db
+            when (plist-match record where-plist :test value-test)
+              do (progn (setf record (update-by-plist record update-plist))
+                        (setf updated? t))))
+    (values tdb updated?)))
 
 (defmethod delete-from-tabular-db! ((tdb tabular-db) (query-plist list))
   "side effect: modify the slot of db"
