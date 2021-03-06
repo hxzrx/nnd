@@ -168,7 +168,8 @@ consisting of the input signal at the current time and at delays of from 1 to R-
   "return a list of realworld delay number about this tdl with respected to delay-type"
   (with-slots ((tdl-from from)
                (tdl-type tdl-type)) tdl
-    (let ((delay-base (get-tdl-delay-base tdl)))
+    (let ((delay-base (query-tdl-delay-base tdl)))
+      (format t "delay base: ~d~%" delay-base)
       (loop for i from tdl-from below (tdl-fifo-length tdl)
             collect (+ delay-base i)))))
 
@@ -176,7 +177,7 @@ consisting of the input signal at the current time and at delays of from 1 to R-
   "get the content with respect to `delay, note delay is a realworld delay, so a :self type of tdl has at least one delay time"
   (with-slots ((tdl-from from)
                (tdl-type tdl-type)) tdl
-    (let ((delay-base (get-tdl-delay-base tdl)))
+    (let ((delay-base (query-tdl-delay-base tdl)))
       (nth (- delay delay-base) (get-tdl-fifo-content tdl)))))
 
 
