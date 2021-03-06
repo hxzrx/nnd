@@ -563,6 +563,12 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
   (with-slots ((input-alist network-input-cache)) lddn ;the cache is a fixed length fifo
     (get-nth-content (second (assoc input-id input-alist)) delay)))
 
+(defmethod query-network-output ((lddn lddn) output-id delay)
+  "get the output vector whose id is `output-id' and delay is `delay'"
+  (with-slots ((output-alist network-output-cache)) lddn ;the cache is a fixed length fifo
+    (get-nth-content (second (assoc output-id output-alist)) delay)))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmethod randomize-input-weights! ((lddn lddn) (layer lddn-layer) input-id)
