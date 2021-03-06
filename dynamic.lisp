@@ -558,6 +558,11 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
         (cond ((eq tdl-type :foreward) (nth delay content))
               (t (nth (1- delay) content)))))))
 
+(defmethod query-network-input ((lddn lddn) input-id delay)
+  "get the input vector whose id is `input-id' and delay is `delay'"
+  (with-slots ((input-alist network-input-cache)) lddn ;the cache is a fixed length fifo
+    (get-nth-content (second (assoc input-id input-alist)) delay)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmethod randomize-input-weights! ((lddn lddn) (layer lddn-layer) input-id)
@@ -660,7 +665,9 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
          )
     (with-slots ((bp-order bp-order)
                  (simul-order simul-order)
+                 (input-to input-to)
                  (input-layers input-layers)
+                 (raw-input-layers raw-input-layers)
                  (output-layers output-layers)
                  (final-output-layers final-output-layers)
                  (sens-db sens-matrix-db)
@@ -724,7 +731,9 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
           (dolist (m simul-order)
             (format t "~&simulation order, layer: ~d~%" m)
 
-
+            (loop for l in raw-input-layers
+                  do (loop for m in (second (assoc l input-to))
+                           do (list l m)));;;;;;;;;;;;;;;
 
 
             )
@@ -916,5 +925,4 @@ for simplicity, we assume that where's only one target.
   (let* ((lddn (make-lddn :config lddn-config-p14.1))
          (samples (list '((1 ((1) (1) (1))) (10 1)) )))
     (format t "~&All samples: ~d~%" samples)
-    ;(calc-lddn-output! lddn (first P))))
     (calc-bptt-gradient lddn samples)))
