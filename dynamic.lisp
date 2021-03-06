@@ -338,11 +338,12 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                    :documentation "sensitivity matrices")
    (F/a-deriv-exp-db :initarg :F/a-deriv-exp-db :accessor F/a-deriv-exp-db :type tabular-db
                      :documentation "explicit partial derivatives of performance function to the output of the output layers")
-   (a/x-deriv-db :initarg :a/x-deriv-db :accessor a/x-deriv-db :type tabular-db
-                 :documentation "partial derivatives of output of the output layers to network parameters")
    (F/x-deriv-db :initarg :F/x-deriv-db :accessor F/x-deriv-db :type tabular-db
                  :documentation "partial derivatives of performance function to network parameters")
-
+   (a/x-deriv-exp-db :initarg :a/x-exp-deriv-db :accessor a/x-deriv-exp-db :type tabular-db
+                 :documentation "explicit partial derivatives of output of the output layers to network parameters")
+   (a/x-deriv-db :initarg :a/x-deriv-db :accessor a/x-deriv-db :type tabular-db
+                 :documentation "partial derivatives of output of the output layers to network parameters")
    )
   (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
 
@@ -362,6 +363,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (sens-matrix-db (make-tabular-db (list :to :from :value))) ;S^{:to,:from}
          (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
          (a/x-deriv-db (make-tabular-db (list :layer :time :param-type :to :from :delay :value))) ;param-type is {:lw :iw :b}
+         (a/x-deriv-exp-db (make-tabular-db (list :layer :time :param-type :to :from :delay :value))) ;param-type is {:lw :iw :b}
          (F/x-deriv-db (make-tabular-db (list :layer :param-type :delay :value)))
          )
     (make-instance 'lddn :inputs inputs
@@ -374,6 +376,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                          :sens-matrix-db sens-matrix-db
                          :F/a-deriv-exp-db F/a-deriv-exp-db
                          :a/x-deriv-db a/x-deriv-db
+                         :a/x-deriv-exp-db a/x-deriv-exp-db
                          :F/x-deriv-db F/x-deriv-db
                          :config config)
     ))
