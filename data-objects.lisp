@@ -67,8 +67,14 @@
 (defsetf contents set-contents)
 
 (defmethod get-contents ((q unsafe-fifo))
+  "note that the first element of the returned list is the oldest and the last one is the newest"
   (with-accessors ((hd unsafe-fifo-hd)) q
     (cdr hd)))
+
+(defmethod get-nth-content ((q unsafe-fifo) n)
+  "return the nth element of q, note the 0th is the newest and the (n-1)'th is the oldest"
+  (assert (and (>= n 0) (< n (countq q))))
+  (nth n (reverse (get-contents q))))
 
 (defmethod findq ((q unsafe-fifo) val &rest args)
   (with-accessors ((hd  unsafe-fifo-hd)) q
