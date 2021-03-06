@@ -222,6 +222,21 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 (defmethod get-exist-lw-from-input ((layer lddn-layer))
   (exist-lw-from-input layer))
 
+;; this shoud be impled by a method of tdl
+#+:ignore
+(defmethod query-iw-delay-nums ((layer lddn-layer) input-id)
+  "return a list of integers of the delay numbers about the input-id in this layer"
+  (with-slots ((iw-alist network-input-weights)) layer ;an alist of id's and tdl's
+    (let ((tdl (second (assoc input-id iw-alist))))
+      (loop for i from (get-tdl-from tdl) below (tdl-fifo-length tdl)
+            collect i))))
+
+(defmethod query-iw-nth-delay ((layer lddn-layer) input-id delay)
+  "return the iw from `input-id' whose delay is `delay', $IW^{this-layer-id,input-id}(delay)$"
+  (with-slots ((iw-alist network-input-weights)) layer ;an alist of id's and tdl's
+    (let ((tdl (second (assoc input-id iw-alist))))
+      (query-tdl-content-by-delay tdl delay))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 
