@@ -157,6 +157,21 @@ consisting of the input signal at the current time and at delays of from 1 to R-
   "the content of the fixed length fifo of the tdl"
   (reverse (get-contents (content tdl))))
 
+(defmethod get-tdl-delays ((tdl tdl))
+  "return a list of delay number about this tdl with respected to delay-type"
+  (with-slots ((tdl-from from)
+               (tdl-type tdl-type)) tdl
+    (let ((delay-base (ecase tdl-type
+                        (:forward 0)
+                        (:self 1)
+                        (:backward 1))))
+      (loop for i from tdl-from below (tdl-fifo-length tdl)
+            collect (+ delay-base i)))))
+
+(defmethod get-tdl-content-by-delay ((tdl tdl) delay)
+  )
+
+
 (defmethod add-tdl-content ((tdl tdl) item)
   (with-slots ((content content)) tdl
     (addq content item)))
