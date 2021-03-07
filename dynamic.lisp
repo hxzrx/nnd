@@ -686,9 +686,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
-  (let* ((exist-sens-layer nil) ; $E_S(u)$, associate list which associate the layers that has non-zero sensitivities with the key
-         (time-step 0)
-         )
+  (let* ((time-step 0))
     (with-slots ((bp-order bp-order)
                  (simul-order simul-order)
                  (input-to input-to)
@@ -707,9 +705,11 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
       (dolist (sample samples)
         (incf time-step)
         (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
+        ;; some db's should be truncated in the beginning of each sample
         (calc-init-sens-insert-db! lddn) ;calc $S^{u,u}$ for all u
-        (let* ((output-layers-tmp nil)  ; $U'$
-               (target (second sample))
+        (let* ((target (second sample))
+               (output-layers-tmp nil)  ; $U'$
+               (exist-sens-layer nil) ;$E_S(u)$, an alist which associate the layers that has non-zero sensitivities with the key
                (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
                )
           ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
@@ -721,13 +721,14 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                                                                                   nil)
                                                                               (get-neuron-output (get-layer lddn u))
                                                                               (if (member u final-output-layers) t nil)))))
+          #+:ignore
           (dolist (u output-layers) ;this dolist seems not necessarily since they are default nil if not specified
             (assert (member u simul-order)) ;make sure u is not nil, will remove this line later
             (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u nil)) ; $E_S(u) = \Phi$
             (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u nil))) ; $E_S^X(u)=\Phi$
 
           (dolist (m bp-order) ;for m decremented through the BP order
-            (format t "~&bp-order, layer: ~d~%" m)
+            (format t "~&Loop for backpropagation order: ~d~%" m)
             (let* ((layer-m (get-layer lddn m))
                    (link-backward-m (get-link-backward layer-m))) ;$L_m^b$
               (dolist (u output-layers-tmp)
@@ -758,40 +759,30 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                 (when (member m input-layers)
                   (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer m m))))
               )) ;end for dolist m
-          (format t "~&sens db:~&~d~%" sens-db)
-          (format t "~%~%F/a-db:~&~d~%" F/a-db)
-
 
           (dolist (u simul-order)
-            (format t "~&simulation order, layer: ~d~%" u)
+            (format t "~&Loop for simulation order: ~d~%" u)
             (when (member u output-layers)
               ;;calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ(d))ᵀ
               (loop for l in raw-input-layers
                     do (loop for m in (second (assoc l input-to))
                              do (progn
                                   (format t "calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ) for u=~d, m=~d, l=~d~%" u m l)
-                                  (format t "IW(~d,~d) tdl:~&~d~%" m l (get-layer-network-input-weight (get-layer lddn m) l))
-                                  (format t "tdl delays: ~d~%" (query-tdl-delays (get-layer-network-input-weight (get-layer lddn m) l)))
                                   (loop for delay in (query-tdl-delays (get-layer-network-input-weight (get-layer lddn m) l))
                                         do (progn
-                                             (format t "for delay = ~d~%" delay)
-                                             (format t "nth content: ~d~%" (get-nth-content (second (assoc l network-input-cache)) delay))
-                                             (insert-tabular-db!
-                                              a/x-exp-db
-                                              (list :layer u
-                                                    :time time-step
-                                                    :param-type :iw
-                                                    :to m
-                                                    :from l
-                                                    :delay delay
-                                                    :value  (kroncker-product
-                                                             #+:ignore
-                                                             (query-tdl-content-by-delay (second (assoc l network-input-cache))
-                                                                                         delay)
-                                                             (get-nth-content (second (assoc l network-input-cache)) delay)
-                                                             (query-tabular-db-value sens-db (list :to u :from m) :value))))
-                                             (format t "insert ok~%")
-                                             (format t "a/x-exp-db:~&~d~%" a/x-exp-db)
+                                             (alexandria:when-let (sens (query-tabular-db-value sens-db
+                                                                                                (list :to u :from m) :value))
+                                               (insert-tabular-db!
+                                                a/x-exp-db
+                                                (list :layer u
+                                                      :time time-step
+                                                      :param-type :iw
+                                                      :to m
+                                                      :from l
+                                                      :delay delay
+                                                      :value  (kroncker-product
+                                                               (get-nth-content (second (assoc l network-input-cache)) delay)
+                                                               sens))))
                                              )))))
 
               ;;calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ(d))ᵀ
@@ -799,46 +790,40 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                     do (loop for m in (get-link-to (get-layer lddn l))
                              do (progn
                                   (format t "calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ) for u=~d, m=~d, l=~d~%" u m l)
-                                  (format t "LW(~d,~d) tdl:~&~d~%" m l (get-layer-weight (get-layer lddn m) l))
-                                  (format t "tdl delays: ~d~%" (query-tdl-delays (get-layer-weight (get-layer lddn m) l)))
                                   (loop for delay in (query-tdl-delays (get-layer-weight (get-layer lddn m) l))
+                                        for delay-type = (get-tdl-type (get-layer-weight (get-layer lddn m) l))
                                         do (progn
-                                             (format t "for delay = ~d~%" delay)
-                                             ;;(format t "output cache:~&~d~%" network-output-cache)
-                                             (format t "nth content: ~d~%" (get-nth-content (second (assoc l network-output-cache)) delay))
-                                             (insert-tabular-db!
-                                              a/x-exp-db
-                                              (list :layer u
-                                                    :time time-step
-                                                    :param-type :lw
-                                                    :to m
-                                                    :from l
-                                                    :delay delay
-                                                    :value  (kroncker-product
-                                                             #+:ignore
-                                                             (query-tdl-content-by-delay (second (assoc l network-output-cache))
-                                                                                         delay)
-                                                             (get-nth-content (second (assoc l network-output-cache)) delay)
-                                                             (query-tabular-db-value sens-db (list :to u :from m) :value))))
-                                             (format t "insert a/x-exp-db ok~%")
-                                             (format t "a/x-exp-db:~%~d~%" a/x-exp-db)
+                                             (alexandria:when-let (sens (query-tabular-db-value sens-db
+                                                                                                (list :to u :from m) :value))
+                                               (insert-tabular-db!
+                                                a/x-exp-db
+                                                (list :layer u
+                                                      :time time-step
+                                                      :param-type :lw
+                                                      :to m
+                                                      :from l
+                                                      :delay delay
+                                                      :value  (kroncker-product
+                                                               (get-nth-content (second (assoc l network-output-cache))
+                                                                                (- delay (query-tdl-delay-base
+                                                                                          (get-layer-weight (get-layer lddn m) l))))
+                                                               sens))))
                                              )))))
 
-              ;;calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ
-              (loop for l in input-layers
+              ;;calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ, need only 2 parameters: u and m, so we set both :to and :from to m
+              (loop for m in bp-order
                     do (progn
-                         (format t "calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ~%")
-                         (loop for m in bp-order
-                               do (alexandria:when-let (sens (query-tabular-db-value sens-db (list :to m :from u) :value))
+                         (format t "calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ: u=~d, m=~d~%" u m)
+                         ;; query not in sens-db will be treated as not a explicit partial derivative
+                         (alexandria:when-let (sens (query-tabular-db-value sens-db (list :to u :from m) :value))
                                     (insert-tabular-db! a/x-exp-db
                                                         (list :layer u
                                                               :time time-step
                                                               :param-type :b
                                                               :to m
-                                                              :from u
-                                                              :value sens))))))
+                                                              :from m
+                                                              :value sens)))))
               ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
-
               (loop for m in bp-order
                     do (progn
                          ;; ∂aᵘ(t)/∂vec(IWᵐˡ(d))ᵀ for all m and all l and all d
