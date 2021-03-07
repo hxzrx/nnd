@@ -38,6 +38,8 @@
                          :documentation "$E_{LW}^U$, the ids of the output layers that connect to this layer (which will always be an input layer) with at least some nonzero delay")
    (exist-lw-from-input :initarg :exist-lw-from-input :accessor exist-lw-from-input :type list :initform nil
                         :documentation "$E_{LW}^X$, the ids of the input layers that have a connection from this layer with at least some nonzero delay")
+   (exist-sens-input-layer :initarg :exist-sens-input-layer :accessor exist-sens-input-layer :type list :initform nil
+                           :documentation "$E_S^X$, a list of input layers that has non-zero sensitivities to this layer, generated when calculating gradient")
    )
   (:documentation "A layer of a dynamic network.
 There are 4 types of slots,
@@ -237,6 +239,12 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
     (let ((tdl (second (assoc input-id iw-alist))))
       (query-tdl-content-by-delay tdl delay))))
 
+(defmethod query-lw-nth-delay ((layer lddn-layer) input-layer-id delay)
+  "return the iw from `layer-id' whose delay is `delay', $LW^{this-layer-id,input-layer-id}(delay)$"
+  (with-slots ((lw-alist layer-weights)) layer ;an alist of id's and tdl's
+    (let ((tdl (second (assoc input-layer-id lw-alist))))
+      (query-tdl-content-by-delay tdl delay))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 
@@ -344,6 +352,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                  :documentation "explicit partial derivatives of output of the output layers to network parameters")
    (a/x-deriv-db :initarg :a/x-deriv-db :accessor a/x-deriv-db :type tabular-db
                  :documentation "partial derivatives of output of the output layers to network parameters")
+   (E-S-X-alist :initarg :E-S-X-alist :accessor E-S-X-alist :type list :initform nil
+                :documentation "$E_S^X$, alist of E-S-X associated with layer id")
    )
   (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
 
@@ -588,6 +598,23 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
   (with-slots ((output-alist network-output-cache)) lddn ;the cache is a fixed length fifo
     (get-nth-content (second (assoc output-id output-alist)) delay)))
 
+(defmethod query-E-S-X ((lddn lddn) layer-id)
+  "get $E_S_X(u)$"
+  (exist-sens-input-layer (get-layer lddn layer-id)))
+
+(defmethod query-E-LW-U ((lddn lddn) layer-id)
+  "get $E_{LW}^U(u)$"
+  (exist-lw-from-output (get-layer lddn layer-id)))
+
+(defmethod query-delay-link ((lddn lddn) to-layer-id from-layer-id)
+  "get $DL_{to,from}$"
+  (with-slots ((lw-alist layer-weights)) (get-layer lddn to-layer-id)
+    (query-tdl-delays (second (assoc from-layer-id lw-alist)))))
+
+#+:ignore
+(defmethod set-exist-sens-input-layer ((lddn lddn) layer-id value)
+  (with-slots ((esx exist-sens-input-layer)) (get-layer lddn layer-id)
+    (setf esx value)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -700,13 +727,19 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                  (F/a-db F/a-deriv-exp-db)
                  (a/x-exp-db a/x-deriv-exp-db)
                  (a/x-deriv-db a/x-deriv-db)
-                 (F/x-deriv-db F/x-deriv-db)
+                 (F/x-deriv-db F/x-deriv-db) ;the gradient to be returned
+                 (E-S-X E-S-X-alist)
                  ) lddn
       (dolist (sample samples)
         (incf time-step)
-        (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
         ;; some db's should be truncated in the beginning of each sample
+        (truncate-tabular-db! sens-db)
+        (truncate-tabular-db! F/a-db)
+        (truncate-tabular-db! a/x-exp-db)
+
+        (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
         (calc-init-sens-insert-db! lddn) ;calc $S^{u,u}$ for all u
+
         (let* ((target (second sample))
                (output-layers-tmp nil)  ; $U'$
                (exist-sens-layer nil) ;$E_S(u)$, an alist which associate the layers that has non-zero sensitivities with the key
@@ -714,7 +747,6 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                )
           ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
           (loop for u in output-layers
-                ;;when (getf target u)
                 do (insert-tabular-db! F/a-db (list :output-layer u :time time-step
                                                     :value (partial-deriv-SSE (if (member u final-output-layers)
                                                                                   (getf target u)
@@ -759,6 +791,8 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                 (when (member m input-layers)
                   (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer m m))))
               )) ;end for dolist m
+
+          (setf E-S-X exist-sens-input-layer) ;save to the slot of lddn
 
           (dolist (u simul-order)
             (format t "~&Loop for simulation order: ~d~%" u)
@@ -823,18 +857,48 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                                                               :to m
                                                               :from m
                                                               :value sens)))))
+
               ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
-              (loop for m in bp-order
+              (loop for m in simul-order ;for each layer
                     do (progn
-                         ;; ∂aᵘ(t)/∂vec(IWᵐˡ(d))ᵀ for all m and all l and all d
-                         ;;....
+                         (with-slots ((iws-alist network-input-weights)
+                                      (lw-alist layer-weights)
+                                      (bias bias)) (get-layer lddn m)
+                           ;; ∂aᵘ(t)/∂vec(IWᵐˡ(d))ᵀ for all m and all l and all d
+                           ;;a/x-exp-db (list :layer :time :param-type :to :from :delay :value)
+                           ;;sens-db (list :to :from :value)
+                           (loop for x in (query-E-S-X lddn u)
+                                 when (query-tabular-db-value sens-db (list :to u :from x) :value)
+                                   collect
+                                   (matrix-product (query-tabular-db-value sens-db (list :to u :from x) :value)
+                                                   (reduce #'matrix-add
+                                                           (loop for u-tmp in (query-E-LW-U lddn x)
+                                                                 collect
+                                                                 (loop for d in (query-delay-link lddn x u-tmp)
+                                                                       when (> (- time-step d) 0)
+                                                                        collect
+                                                                        (matrix-product
+                                                                         (query-lw-nth-delay (get-layer lddn x) u-tmp d)
+                                                                         (query-tabular-db-value
+                                                                          a/x-deriv-db
+                                                                          (list :layer u
+                                                                                :time (- time-step d)
+                                                                                :param-type :iw
+                                                                                :to x
+                                                                                :from u-tmp
+                                                                                :delay d)
+                                                                          :value)))))))
 
-                         ;; ∂aᵘ(t)/∂vec(LWᵐˡ(d))ᵀ for all m and all l and all d
-                         ;;....
 
-                         ;; ∂aᵘ(t)/∂(bᵐ)ᵀ for all m
-                         ;;....
-                         ))
+
+
+
+                           ;; ∂aᵘ(t)/∂vec(LWᵐˡ(d))ᵀ for all m and all l and all d
+                           ;;....
+
+                           ;; ∂aᵘ(t)/∂(bᵐ)ᵀ for all m
+                           ;;....
+                         )))
               ));end for dolist (u simul-order)
 
           ;; accumulate ∂F/∂x here
@@ -844,7 +908,6 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
       F/x-deriv-db ;return tabular-db of ∂F/∂x
       )))
 
-                                                          :param-type :b                                                         :param-type :b
 
 
 
