@@ -354,6 +354,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                  :documentation "partial derivatives of output of the output layers to network parameters")
    (E-S-X-alist :initarg :E-S-X-alist :accessor E-S-X-alist :type list :initform nil
                 :documentation "$E_S^X$, alist of E-S-X associated with layer id")
+   (parameter-indices :initarg :parameter-indices :accessor parameter-indices :type list :initform nil
+                      :documentation "a list of plist that can be used to locate a specified parameter(iw, lw, bias). see the doc of enum-lddn-parameter-indices")
    )
   (:documentation "Layered Digital Dynamic Network, the slot's names should reference to page 290, Chinese edition"))
 
@@ -406,7 +408,8 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                (max-network-input-delay max-network-input-delay)
                (max-layer-input-delay max-layer-input-delay)
                (network-input-cache network-input-cache)
-               (network-output-cache network-output-cache)) lddn
+               (network-output-cache network-output-cache)
+               (parameter-indices parameter-indices)) lddn
     ;; initialize the parts in the layers
     (dolist (layer layers)
       (with-slots ((IWs network-input-weights)
@@ -487,7 +490,8 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                 collect (list id (make-fixed-len-unsafe-fifo
                                   delay
                                   :content (make-zeros (get-neurons (get-layer lddn id)) 1)))))
-
+    ;; parameter-indices
+    (setf parameter-indices (enum-lddn-parameter-indices lddn))
     ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -669,6 +673,20 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
     (alexandria:when-let (id-fifo (assoc output-layer-id fifo-alist))
     (add-fixed-fifo (second id-fifo) output-vector))))
 
+(defmethod enum-lddn-parameter-indices ((lddn lddn))
+  "enumerate all the indices of the network parameters so that there's a one to on correspondence between the indices and network parameters. each index is a plist such as: '(:layer 1 :type :iw :from 1 :delay 0).
+and the result returned is a list of such plists."
+  (with-slots ((layer-id-list simul-order)) lddn
+    (loop for layer-id in layer-id-list
+          append (reduce #'append
+                         (list
+                          (loop for (id tdl) in (network-input-weights (get-layer lddn layer-id))
+                                append (loop for delay in (query-tdl-delays tdl)
+                                             collect (list :layer layer-id :type :iw :from id :delay delay)))
+                          (loop for (id tdl) in (layer-weights (get-layer lddn layer-id))
+                                append (loop for delay in (query-tdl-delays tdl)
+                                         collect (list :layer layer-id :type :lw :from id :delay delay)))
+                          (list (list :layer layer-id :type :b)))))))
 
 
 
@@ -729,6 +747,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                  (a/x-deriv-db a/x-deriv-db)
                  (F/x-deriv-db F/x-deriv-db) ;the gradient to be returned
                  (E-S-X E-S-X-alist)
+                 (parameter-indices parameter-indices)
                  ) lddn
       (dolist (sample samples)
         (incf time-step)
@@ -859,6 +878,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                                                               :value sens)))))
 
               ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
+              ;; will loop for (enum-lddn-parameter-indices lddn)
               (loop for m in simul-order ;for each layer
                     do (progn
                          (with-slots ((iws-alist network-input-weights)
@@ -867,6 +887,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                            ;; ∂aᵘ(t)/∂vec(IWᵐˡ(d))ᵀ for all m and all l and all d
                            ;;a/x-exp-db (list :layer :time :param-type :to :from :delay :value)
                            ;;sens-db (list :to :from :value)
+                           ;;(alexandria:when-let ((exp-deriv (query-tabular-db-value a/x-exp-db
                            (loop for x in (query-E-S-X lddn u)
                                  when (query-tabular-db-value sens-db (list :to u :from x) :value)
                                    collect
@@ -880,13 +901,12 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                                                                         (matrix-product
                                                                          (query-lw-nth-delay (get-layer lddn x) u-tmp d)
                                                                          (query-tabular-db-value
-                                                                          a/x-deriv-db
-                                                                          (list :layer u
-                                                                                :time (- time-step d)
-                                                                                :param-type :iw
-                                                                                :to x
-                                                                                :from u-tmp
-                                                                                :delay d)
+                                                                          a/x-deriv-db (list :layer u
+                                                                                             :time (- time-step d)
+                                                                                             :param-type :iw
+                                                                                             :to x
+                                                                                             :from u-tmp
+                                                                                             :delay d)
                                                                           :value)))))))
 
 
@@ -1091,5 +1111,6 @@ for simplicity, we assume that where's only one target.
 "
   (let* ((lddn (make-lddn :config lddn-config-p14.1))
          (samples (list '((1 ((1) (1) (1))) (10 1)) )))
+    (format t "~&Parameter indices:~&~{~d~^~%~}~%" (enum-lddn-parameter-indices lddn))
     (format t "~&All samples: ~d~%" samples)
     (calc-bptt-gradient lddn samples)))
