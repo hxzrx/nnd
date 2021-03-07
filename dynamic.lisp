@@ -340,7 +340,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                      :documentation "explicit partial derivatives of performance function to the output of the output layers")
    (F/x-deriv-db :initarg :F/x-deriv-db :accessor F/x-deriv-db :type tabular-db
                  :documentation "partial derivatives of performance function to network parameters")
-   (a/x-deriv-exp-db :initarg :a/x-exp-deriv-db :accessor a/x-deriv-exp-db :type tabular-db
+   (a/x-deriv-exp-db :initarg :a/x-deriv-exp-db :accessor a/x-deriv-exp-db :type tabular-db
                  :documentation "explicit partial derivatives of output of the output layers to network parameters")
    (a/x-deriv-db :initarg :a/x-deriv-db :accessor a/x-deriv-db :type tabular-db
                  :documentation "partial derivatives of output of the output layers to network parameters")
@@ -384,7 +384,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 (defmethod initialize-instance :after ((lddn lddn) &key config  &allow-other-keys)
   "initialize network-output slot of lddn,
 initizlize the layers' slots link-forward, link-backward, layer-weights, network-input-weights, bias"
-  (with-slots ((layers layers)
+  (with-slots ((simul-order simul-order)
+               (layers layers)
                (inputs inputs)
                (input-to input-to)
                (raw-input-layers raw-input-layers)
@@ -456,7 +457,8 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
                                                     (second (assoc input-id (get-network-inputs
                                                                              (get-layer lddn input-to-layer-id))))))))))
     (setf max-layer-input-delay
-          (loop for layer-id in output-layers
+          ;;(loop for layer-id in output-layers ;0307 00:18
+          (loop for layer-id in simul-order
                 collect (list layer-id
                               (apply #'max
                                      (alexandria:if-let
@@ -620,7 +622,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
          (res (funcall (transfer layer) net-input)))
     (set-net-input! layer net-input)
     (set-neuron-output! layer res)
-    (add-network-output-to-cache! lddn (get-layer-id layer) res) ;a better way is to check if this is a output layer first
+    (add-network-output-to-cache! lddn (get-layer-id layer) res)
     (calc-deriv-F-n! layer)
     (loop for send-to-id in (link-to layer)
           do (add-tdl-content (get-layer-input (get-layer lddn send-to-id) (get-layer-id layer))
@@ -691,11 +693,17 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
                  (simul-order simul-order)
                  (input-to input-to)
                  (input-layers input-layers)
+                 (network-input-cache network-input-cache)
+                 (network-output-cache network-output-cache)
                  (raw-input-layers raw-input-layers)
                  (output-layers output-layers)
                  (final-output-layers final-output-layers)
                  (sens-db sens-matrix-db)
-                 (F/a-db F/a-deriv-exp-db)) lddn
+                 (F/a-db F/a-deriv-exp-db)
+                 (a/x-exp-db a/x-deriv-exp-db)
+                 (a/x-deriv-db a/x-deriv-db)
+                 (F/x-deriv-db F/x-deriv-db)
+                 ) lddn
       (dolist (sample samples)
         (incf time-step)
         (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
@@ -752,19 +760,106 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
               )) ;end for dolist m
           (format t "~&sens db:~&~d~%" sens-db)
           (format t "~%~%F/a-db:~&~d~%" F/a-db)
-          (dolist (m simul-order)
-            (format t "~&simulation order, layer: ~d~%" m)
-
-            (loop for l in raw-input-layers
-                  do (loop for m in (second (assoc l input-to))
-                           do (list l m)));;;;;;;;;;;;;;;
 
 
-            )
+          (dolist (u simul-order)
+            (format t "~&simulation order, layer: ~d~%" u)
+            (when (member u output-layers)
+              ;;calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ(d))ᵀ
+              (loop for l in raw-input-layers
+                    do (loop for m in (second (assoc l input-to))
+                             do (progn
+                                  (format t "calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ) for u=~d, m=~d, l=~d~%" u m l)
+                                  (format t "IW(~d,~d) tdl:~&~d~%" m l (get-layer-network-input-weight (get-layer lddn m) l))
+                                  (format t "tdl delays: ~d~%" (query-tdl-delays (get-layer-network-input-weight (get-layer lddn m) l)))
+                                  (loop for delay in (query-tdl-delays (get-layer-network-input-weight (get-layer lddn m) l))
+                                        do (progn
+                                             (format t "for delay = ~d~%" delay)
+                                             (format t "nth content: ~d~%" (get-nth-content (second (assoc l network-input-cache)) delay))
+                                             (insert-tabular-db!
+                                              a/x-exp-db
+                                              (list :layer u
+                                                    :time time-step
+                                                    :param-type :iw
+                                                    :to m
+                                                    :from l
+                                                    :delay delay
+                                                    :value  (kroncker-product
+                                                             #+:ignore
+                                                             (query-tdl-content-by-delay (second (assoc l network-input-cache))
+                                                                                         delay)
+                                                             (get-nth-content (second (assoc l network-input-cache)) delay)
+                                                             (query-tabular-db-value sens-db (list :to u :from m) :value))))
+                                             (format t "insert ok~%")
+                                             (format t "a/x-exp-db:~&~d~%" a/x-exp-db)
+                                             )))))
 
-          )))))
+              ;;calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ(d))ᵀ
+              (loop for l in input-layers
+                    do (loop for m in (get-link-to (get-layer lddn l))
+                             do (progn
+                                  (format t "calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ) for u=~d, m=~d, l=~d~%" u m l)
+                                  (format t "LW(~d,~d) tdl:~&~d~%" m l (get-layer-weight (get-layer lddn m) l))
+                                  (format t "tdl delays: ~d~%" (query-tdl-delays (get-layer-weight (get-layer lddn m) l)))
+                                  (loop for delay in (query-tdl-delays (get-layer-weight (get-layer lddn m) l))
+                                        do (progn
+                                             (format t "for delay = ~d~%" delay)
+                                             ;;(format t "output cache:~&~d~%" network-output-cache)
+                                             (format t "nth content: ~d~%" (get-nth-content (second (assoc l network-output-cache)) delay))
+                                             (insert-tabular-db!
+                                              a/x-exp-db
+                                              (list :layer u
+                                                    :time time-step
+                                                    :param-type :lw
+                                                    :to m
+                                                    :from l
+                                                    :delay delay
+                                                    :value  (kroncker-product
+                                                             #+:ignore
+                                                             (query-tdl-content-by-delay (second (assoc l network-output-cache))
+                                                                                         delay)
+                                                             (get-nth-content (second (assoc l network-output-cache)) delay)
+                                                             (query-tabular-db-value sens-db (list :to u :from m) :value))))
+                                             (format t "insert a/x-exp-db ok~%")
+                                             (format t "a/x-exp-db:~%~d~%" a/x-exp-db)
+                                             )))))
 
+              ;;calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ
+              (loop for l in input-layers
+                    do (progn
+                         (format t "calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ~%")
+                         (loop for m in bp-order
+                               do (alexandria:when-let (sens (query-tabular-db-value sens-db (list :to m :from u) :value))
+                                    (insert-tabular-db! a/x-exp-db
+                                                        (list :layer u
+                                                              :time time-step
+                                                              :param-type :b
+                                                              :to m
+                                                              :from u
+                                                              :value sens))))))
+              ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
 
+              (loop for m in bp-order
+                    do (progn
+                         ;; ∂aᵘ(t)/∂vec(IWᵐˡ(d))ᵀ for all m and all l and all d
+                         ;;....
+
+                         ;; ∂aᵘ(t)/∂vec(LWᵐˡ(d))ᵀ for all m and all l and all d
+                         ;;....
+
+                         ;; ∂aᵘ(t)/∂(bᵐ)ᵀ for all m
+                         ;;....
+                         ))
+              ));end for dolist (u simul-order)
+
+          ;; accumulate ∂F/∂x here
+          ;;....
+          )
+        ) ;end for dolist (sample samples)
+      F/x-deriv-db ;return tabular-db of ∂F/∂x
+      )))
+
+                                                          :param-type :b                                                         :param-type :b
 
 
 
