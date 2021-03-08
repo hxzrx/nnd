@@ -1,9 +1,9 @@
 (in-package #:nnd)
 
 ;;; hard limit
-(defgeneric hardlim (net-output) 
+(defgeneric hardlim (net-output)
   (:documentation "hard limit, return 1 when netoutput >= 0 else return 0"))
-  
+
 (defmethod hardlim ((net-output number))
   "for a singl real number"
   (declare (type real net-output))
@@ -111,8 +111,17 @@
   (collect-transfer #'poslin net-output))
 
 ;;;; compet
-(defgeneric compet (neuron)
-  (:documentation "competitive"))
+(defgeneric compet (vector)
+  (:documentation "competitive")
+  (:method ((n number)) 1)
+  (:method ((vector list))
+    (let* ((size (matrix-size vector))
+           (to-list (first (transpose vector)))
+           (max-place (find-max-id to-list)))
+      (loop for i from 0 below (car size)
+            collect (if (= max-place i)
+                        (list 1)
+                        (list 0))))))
 
 ;;;; square
 (defgeneric square (net-output)
@@ -138,9 +147,10 @@
   "list type, f(n) = n ^ 3"
   (collect-transfer #'cube net-output))
 
+
 #+:ignore
 (defgeneric derivative (function-type)
-  (:documentation "return the derivative of the function, 
+  (:documentation "return the derivative of the function,
                    only cover several transfer functions"))
 
 (defun derivative (fun-type)
