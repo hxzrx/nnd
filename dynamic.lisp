@@ -747,14 +747,22 @@ and the result returned is a list of such plists."
   (with-slots ((sens-db sens-matrix-db)) lddn ;(list :to u :from m :value sens-matrix-u-m)
     (let ((sens (query-tabular-db-value sens-db (list :to neuro-output-u :from to-layer-m) :value)))
       (format t "<calc-explicit-deriv-output/x>~%")
-      (cond ((eq type :iw) (if sens
-                               (kroncker-product (query-network-input lddn from-l delay) sens)
-                               (kroncker-product (query-network-input lddn from-l delay)
-                                                 (calc-default-sens lddn neuro-output-u to-layer-m))))
-            ((eq type :lw) (if sens
-                               (kroncker-product (query-network-output lddn from-l delay) sens)
-                               (kroncker-product (query-network-output lddn from-l delay)
-                                                 (calc-default-sens lddn neuro-output-u to-layer-m))))
+      (cond ((eq type :iw) (alexandria:if-let (input (query-network-input lddn from-l delay))
+                             (if sens
+                                 (kroncker-product input sens)
+                                 (kroncker-product input (calc-default-sens lddn neuro-output-u to-layer-m)))
+                             (if sens
+                                 (kroncker-product (calc-default-network-input lddn from-l) sens)
+                                 (kroncker-product (calc-default-network-input lddn from-l)
+                                                   (calc-default-sens lddn neuro-output-u to-layer-m)))))
+            ((eq type :lw) (alexandria:if-let (output (query-network-output lddn from-l delay))
+                             (if sens
+                                 (kroncker-product output sens)
+                                 (kroncker-product output (calc-default-sens lddn neuro-output-u to-layer-m)))
+                             (if sens
+                                 (kroncker-product (calc-default-neuro-output lddn from-l) sens)
+                                 (kroncker-product (calc-default-neuro-output lddn from-l)
+                                                   (calc-default-sens lddn neuro-output-u to-layer-m)))))
             ((eql type nil) (if sens sens (calc-default-sens lddn neuro-output-u to-layer-m)))
             (t (warn "Invalid type: ~d" type))))))
 
