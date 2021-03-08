@@ -532,11 +532,12 @@
     (make-zeros dimension)))
 
 (defgeneric matrix-zeros-p (matrix)
-  (:documentation "check if the matrix's elemets are all zeros"))
-
-(defmethod matrix-zeros-p ((matrix list))
-  "check if the matrix's elemets are all zeros"
-  (every #' list-zeros-p matrix))
+  (:documentation "check if the matrix's elemets are all zeros")
+  (:method ((matrix list))
+    "check if the matrix's elemets are all zeros"
+    (every #' list-zeros-p matrix))
+  (:method ((n number))
+    (= n 0)))
 
 (defgeneric make-ones (m &optional n)
   (:documentation "return a matrix which elements are all 1's. If n is nil, return a row vector such as '((1 1 1))"))
