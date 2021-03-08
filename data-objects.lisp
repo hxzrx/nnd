@@ -76,6 +76,9 @@
   (assert (and (>= n 0) (< n (countq q))))
   (nth n (reverse (get-contents q))))
 
+(defmethod get-nth-content ((q (eql nil)) n)
+  nil)
+
 (defmethod findq ((q unsafe-fifo) val &rest args)
   (with-accessors ((hd  unsafe-fifo-hd)) q
     (declare (cons hd))
@@ -169,7 +172,6 @@ consisting of the input signal at the current time and at delays of from 1 to R-
   (with-slots ((tdl-from from)
                (tdl-type tdl-type)) tdl
     (let ((delay-base (query-tdl-delay-base tdl)))
-      (format t "delay base: ~d~%" delay-base)
       (loop for i from tdl-from below (tdl-fifo-length tdl)
             collect (+ delay-base i)))))
 
