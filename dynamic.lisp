@@ -732,13 +732,20 @@ and the result returned is a list of such plists."
          (layer-from (get-layer lddn from)))
     (make-zeros (get-neurons layer-to) (get-neurons layer-from))))
 
-(defmethod explicit-deriv-output/x ((lddn lddn) output-u to-m &optional from-l type delay)
-  "equation (14.42), explicit partial derivative of neuro output of layer u to "
+(defmethod explicit-deriv-output/x ((lddn lddn) neuro-output-u to-layer-m &optional from-l delay type)
+  "equation (14.42)-(14.44), explicit partial derivative of the u-th layer's neuro output to the parameters of layer m"
   (with-slots ((sens-db sens-matrix-db)) lddn ;(list :to u :from m :value sens-matrix-u-m)
-    (cond ((eq type :iw) (format t "not impled yet~%"))
-          ((eq type :lw) (format t "not impled yet~%"))
-          ((eql type nil) (query-tabular-db-value sens-db (list :to output-u :from to-m) :value))
-          (t (warn "Invalid type: ~d" type)))))
+    (let ((sens (query-tabular-db-value sens-db (list :to neuro-output-u :from to-layer-m) :value)))
+      (cond ((eq type :iw) (if sens
+                               (kroncker-product (query-network-input lddn from-l delay) sens)
+                               (kroncker-product (query-network-input lddn from-l delay)
+                                                 (calc-default-sens lddn neuro-output-u to-layer-m))))
+            ((eq type :lw) (if sens
+                               (kroncker-product (query-network-output lddn from-l delay) sens)
+                               (kroncker-product (query-network-output lddn from-l delay)
+                                                 (calc-default-sens lddn neuro-output-u to-layer-m))))
+            ((eql type nil) (if sens sens (calc-default-sens lddn neuro-output-u to-layer-m)))
+            (t (warn "Invalid type: ~d" type))))))
 
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
