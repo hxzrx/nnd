@@ -1,3 +1,4 @@
+
 ;;;; Chapter 15, Dynamic Networks
 
 (in-package :nnd)
@@ -724,10 +725,20 @@ and the result returned is a list of such plists."
           do (insert-tabular-db! sens-tdb (list :to (get-layer-id layer) :from (get-layer-id layer)
                                                 :value (get-deriv-F-n layer))))))
 
-(defmethod deriv-neoru-output-to-iw ((lddn lddn)  output-layer-u input-layer-m inter-layer-l)
-  "equation (14.42), explicit partial derivative of neuro output of layer u to "
 
-  )
+(defmethod calc-default-sens ((lddn lddn) to from)
+  "$S^{to,from}$, default is a zero matrix with size $S^{to} * S^{from}$"
+  (let ((layer-to (get-layer lddn to))
+         (layer-from (get-layer lddn from)))
+    (make-zeros (get-neurons layer-to) (get-neurons layer-from))))
+
+(defmethod explicit-deriv-output/x ((lddn lddn) output-u to-m &optional from-l type delay)
+  "equation (14.42), explicit partial derivative of neuro output of layer u to "
+  (with-slots ((sens-db sens-matrix-db)) lddn ;(list :to u :from m :value sens-matrix-u-m)
+    (cond ((eq type :iw) (format t "not impled yet~%"))
+          ((eq type :lw) (format t "not impled yet~%"))
+          ((eql type nil) (query-tabular-db-value sens-db (list :to output-u :from to-m) :value))
+          (t (warn "Invalid type: ~d" type)))))
 
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
@@ -878,7 +889,7 @@ and the result returned is a list of such plists."
                                                               :value sens)))))
 
               ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
-              ;; will loop for (enum-lddn-parameter-indices lddn)
+              ;; will loop for (enum-lddn-parameter-indices lddn), 遍历参数枚举来产生所有导数, 参数的索引与(14.34)的上下标索引不是一回事
               (loop for m in simul-order ;for each layer
                     do (progn
                          (with-slots ((iws-alist network-input-weights)
@@ -918,7 +929,14 @@ and the result returned is a list of such plists."
 
                            ;; ∂aᵘ(t)/∂(bᵐ)ᵀ for all m
                            ;;....
-                         )))
+                           )))
+              ;;parameter-indices (list :layer layer-id :type :iw :from id :delay delay)
+              (loop for index-plist in parameter-indices
+                    do (ecase (getf index-plist :type)
+                         (:iw)
+                         (:lw)
+                         (:b)
+                         ))
               ));end for dolist (u simul-order)
 
           ;; accumulate ∂F/∂x here
