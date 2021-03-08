@@ -732,7 +732,7 @@ and the result returned is a list of such plists."
          (layer-from (get-layer lddn from)))
     (make-zeros (get-neurons layer-to) (get-neurons layer-from))))
 
-(defmethod explicit-deriv-output/x ((lddn lddn) neuro-output-u to-layer-m &optional from-l delay type)
+(defmethod calc-explicit-deriv-output/x ((lddn lddn) neuro-output-u to-layer-m &optional from-l delay type)
   "equation (14.42)-(14.44), explicit partial derivative of the u-th layer's neuro output to the parameters of layer m"
   (with-slots ((sens-db sens-matrix-db)) lddn ;(list :to u :from m :value sens-matrix-u-m)
     (let ((sens (query-tabular-db-value sens-db (list :to neuro-output-u :from to-layer-m) :value)))
@@ -897,7 +897,7 @@ and the result returned is a list of such plists."
 
               ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
               ;; will loop for (enum-lddn-parameter-indices lddn), 遍历参数枚举来产生所有导数, 参数的索引与(14.34)的上下标索引不是一回事
-              (loop for m in simul-order ;for each layer
+              #+:ignre(loop for m in simul-order ;for each layer
                     do (progn
                          (with-slots ((iws-alist network-input-weights)
                                       (lw-alist layer-weights)
@@ -938,12 +938,75 @@ and the result returned is a list of such plists."
                            ;;....
                            )))
               ;;parameter-indices (list :layer layer-id :type :iw :from id :delay delay)
+              ;;a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
               (loop for index-plist in parameter-indices
-                    do (ecase (getf index-plist :type)
-                         (:iw)
-                         (:lw)
-                         (:b)
-                         ))
+                    do (let ((m (getf index-plist :layer))
+                             (x-type (getf index-plist :type))
+                             (l (getf index-plist :from))
+                             (delay (getf index-plist :delay))) ;it's not the same delay in the loop
+                         (ecase x-type
+                           (:iw (insert-tabular-db!
+                                 a/x-deriv-db
+                                 (list :layer u :time time-step :param-type :iw :to m :from l :delay delay
+                                       :value
+                                       (matrix-add
+                                        (calc-explicit-deriv-output/x lddn u m l delay :iw)
+                                        (reduce #'matrix-add
+                                                (remove nil
+                                                (loop for x in (query-E-S-X lddn u)
+                                                      when (query-tabular-db-value sens-db (list :to u :from x) :value)
+                                                        collect
+                                                        (matrix-product (query-tabular-db-value sens-db (list :to u :from x) :value)
+                                                                        (reduce #'matrix-add
+                                                                                (loop for u-tmp in (query-E-LW-U lddn x)
+                                                                                      collect
+                                                                                      (loop for d in (query-delay-link lddn x u-tmp)
+                                                                                            when (> (- time-step d) 0)
+                                                                                              collect
+                                                                                              (matrix-product
+                                                                                               (query-lw-nth-delay (get-layer lddn x)
+                                                                                                                   u-tmp d)
+                                                                                               (query-tabular-db-value
+                                                                                                a/x-deriv-db (list :layer u
+                                                                                                                   :time (- time-step d)
+                                                                                                                   :param-type :iw
+                                                                                                                   :to x
+                                                                                                                   :from u-tmp
+                                                                                                                   :delay d)
+                                                                                                :value)))))))))))))
+                           (:lw (insert-tabular-db!
+                                 a/x-deriv-db
+                                 (list :layer u :time time-step :param-type :lw :to m :from l :delay delay
+                                       :value
+                                       (matrix-add
+                                        (calc-explicit-deriv-output/x lddn u m l delay :lw)
+                                        (reduce #'matrix-add
+                                                (remove nil
+                                                (loop for x in (query-E-S-X lddn u)
+                                                      when (query-tabular-db-value sens-db (list :to u :from x) :value)
+                                                        collect
+                                                        (matrix-product (query-tabular-db-value sens-db (list :to u :from x) :value)
+                                                                        (reduce #'matrix-add
+                                                                                (loop for u-tmp in (query-E-LW-U lddn x)
+                                                                                      collect
+                                                                                      (loop for d in (query-delay-link lddn x u-tmp)
+                                                                                            when (> (- time-step d) 0)
+                                                                                              collect
+                                                                                              (matrix-product
+                                                                                               (query-lw-nth-delay (get-layer lddn x)
+                                                                                                                   u-tmp d)
+                                                                                               (query-tabular-db-value
+                                                                                                a/x-deriv-db (list :layer u
+                                                                                                                   :time (- time-step d)
+                                                                                                                   :param-type :lw
+                                                                                                                   :to x
+                                                                                                                   :from u-tmp
+                                                                                                                   :delay d)
+                                                                                                :value)))))))))))))
+                           (:b (alexandria:if-let (sens (query-tabular-db-value sens-db (list :to u :from m) :value))
+                                 sens
+                                 (calc-default-sens lddn u m)))
+                         )))
               ));end for dolist (u simul-order)
 
           ;; accumulate ∂F/∂x here
