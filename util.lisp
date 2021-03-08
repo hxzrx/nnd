@@ -524,3 +524,19 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
              (plist-match template-plist query-plist :test test))
         nil)
       t))
+
+(defun find-most-id (lst &key most most-id iter-id (key #'identity) test)
+  "find where the most element is with the test function `test' when comparing with key function `key'"
+  (if most
+      (if lst
+          (if (funcall test (funcall key most) (funcall key (car lst)))
+              (find-most-id (cdr lst) :most most      :most-id most-id      :iter-id (1+ iter-id) :key key :test test)
+              (find-most-id (cdr lst) :most (car lst) :most-id (1+ iter-id) :iter-id (1+ iter-id) :key key :test test))
+          most-id)
+      (find-most-id (cdr lst) :most (car lst) :most-id 0 :iter-id 0 :key key :test test))) ;to initialize
+
+(defun find-max-id (lst &optional (return-first t))
+  "find where the max element is in a list of numbers, if `return-first' is t, return the first id when one number ties another, else reurn the last id"
+  (if return-first
+      (find-most-id lst :test #'>=)
+      (find-most-id lst :test #'>)))
