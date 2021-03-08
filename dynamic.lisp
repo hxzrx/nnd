@@ -593,15 +593,17 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
         (cond ((eq tdl-type :foreward) (nth delay content))
               (t (nth (1- delay) content)))))))
 
-(defmethod query-network-input ((lddn lddn) input-id delay)
-  "get the input vector whose id is `input-id' and delay is `delay'"
+(defmethod query-network-input ((lddn lddn) input-id delay delay-base)
+  "get the input vector whose id is `input-id' and delay is `delay',
+delay-base, see the delay base definition in query-tdl-delay-base(network input is a fifo, not tdl type)"
   (with-slots ((input-alist network-input-cache)) lddn ;the cache is a fixed length fifo
-    (get-nth-content (second (assoc input-id input-alist)) delay)))
+    (format t "<query-network-input>~&inputid: ~d, alist:~d~%" input-id input-alist)
+    (get-nth-content (second (assoc input-id input-alist)) (- delay delay-base))))
 
-(defmethod query-network-output ((lddn lddn) output-id delay)
+(defmethod query-network-output ((lddn lddn) output-id delay delay-base)
   "get the output vector whose id is `output-id' and delay is `delay'"
   (with-slots ((output-alist network-output-cache)) lddn ;the cache is a fixed length fifo
-    (get-nth-content (second (assoc output-id output-alist)) delay)))
+    (get-nth-content (second (assoc output-id output-alist)) (- delay delay-base))))
 
 (defmethod query-E-S-X ((lddn lddn) layer-id)
   "get $E_S_X(u)$"
@@ -615,6 +617,15 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
   "get $DL_{to,from}$"
   (with-slots ((lw-alist layer-weights)) (get-layer lddn to-layer-id)
     (query-tdl-delays (second (assoc from-layer-id lw-alist)))))
+
+(defmethod query-weights-delay-base ((lddn lddn) layer-id in-id &key type)
+  (ecase type
+    (:iw (let ((layer (get-layer lddn layer-id)))
+           (with-slots ((iws network-input-weights)) layer
+             (query-tdl-delay-base (second (assoc in-id iws))))))
+    (:lw (let ((layer (get-layer lddn layer-id)))
+           (with-slots ((lws layer-weights)) layer
+             (query-tdl-delay-base (second (assoc in-id lws))))))))
 
 #+:ignore
 (defmethod set-exist-sens-input-layer ((lddn lddn) layer-id value)
@@ -733,6 +744,7 @@ and the result returned is a list of such plists."
 
 (defmethod calc-default-network-input ((lddn lddn) input-id)
   "make a column vector with all elements zeros that has the same dimension as the input of `input-id, this method is used to get p(t-d) when t-d <= 0"
+  (format t "<calc-default-network-input> input id: ~d~%" input-id)
   (with-slots ((inputs inputs)) lddn
     (make-zeros (second (assoc input-id inputs)) 1)))
 
@@ -747,7 +759,9 @@ and the result returned is a list of such plists."
   (with-slots ((sens-db sens-matrix-db)) lddn ;(list :to u :from m :value sens-matrix-u-m)
     (let ((sens (query-tabular-db-value sens-db (list :to neuro-output-u :from to-layer-m) :value)))
       (format t "<calc-explicit-deriv-output/x>~%")
-      (cond ((eq type :iw) (alexandria:if-let (input (query-network-input lddn from-l delay))
+      (cond ((eq type :iw) (alexandria:if-let (input (query-network-input lddn from-l delay
+                                                                          (query-weights-delay-base lddn to-layer-m from-l
+                                                                                                    :type :iw)))
                              (if sens
                                  (kroncker-product input sens)
                                  (kroncker-product input (calc-default-sens lddn neuro-output-u to-layer-m)))
@@ -755,7 +769,9 @@ and the result returned is a list of such plists."
                                  (kroncker-product (calc-default-network-input lddn from-l) sens)
                                  (kroncker-product (calc-default-network-input lddn from-l)
                                                    (calc-default-sens lddn neuro-output-u to-layer-m)))))
-            ((eq type :lw) (alexandria:if-let (output (query-network-output lddn from-l delay))
+            ((eq type :lw) (alexandria:if-let (output (query-network-output lddn from-l delay
+                                                                            (query-weights-delay-base lddn to-layer-m from-l
+                                                                                                      :type :lw)))
                              (if sens
                                  (kroncker-product output sens)
                                  (kroncker-product output (calc-default-sens lddn neuro-output-u to-layer-m)))
@@ -1023,7 +1039,7 @@ and the result returned is a list of such plists."
                                                                                                                     :from u-tmp
                                                                                                                     :delay d)
                                                                                                  :value))))))))
-                                         (explicit-deriv (calc-explicit-deriv-output/x lddn u m l delay :iw)))
+                                         (explicit-deriv (calc-explicit-deriv-output/x lddn u m l delay :lw)))
                                      (if sigmas
                                          (matrix-add explicit-deriv (reduce #'matrix-add sigmas))
                                          explicit-deriv)))))
