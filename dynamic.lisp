@@ -862,24 +862,24 @@ and the result returned is a list of such plists."
 
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
-  (let* ((time-step 0))
-    (with-slots ((bp-order bp-order)
-                 (simul-order simul-order)
-                 (input-to input-to)
-                 (input-layers input-layers)
-                 (network-input-cache network-input-cache)
-                 (network-output-cache network-output-cache)
-                 (raw-input-layers raw-input-layers)
-                 (output-layers output-layers)
-                 (final-output-layers final-output-layers)
-                 (sens-db sens-matrix-db)
-                 (F/a-exp-db F/a-deriv-exp-db)
-                 (a/x-exp-db a/x-deriv-exp-db)
-                 (a/x-deriv-db a/x-deriv-db)
-                 (F/x-deriv-db F/x-deriv-db) ;the gradient to be returned
-                 (E-S-X E-S-X-alist)
-                 (parameter-indices parameter-indices)
-                 ) lddn
+  (with-slots ((bp-order bp-order)
+               (simul-order simul-order)
+               (input-to input-to)
+               (input-layers input-layers)
+               (network-input-cache network-input-cache)
+               (network-output-cache network-output-cache)
+               (raw-input-layers raw-input-layers)
+               (output-layers output-layers)
+               (final-output-layers final-output-layers)
+               (sens-db sens-matrix-db)
+               (F/a-exp-db F/a-deriv-exp-db)
+               (a/x-exp-db a/x-deriv-exp-db)
+               (a/x-deriv-db a/x-deriv-db)
+               (F/x-deriv-db F/x-deriv-db) ;the gradient to be returned
+               (E-S-X E-S-X-alist)
+               (parameter-indices parameter-indices)
+               ) lddn
+    (let* ((time-step 0))
       (dolist (sample samples)
         (incf time-step)
         ;; some db's should be truncated in the beginning of each sample
@@ -898,11 +898,11 @@ and the result returned is a list of such plists."
           ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
           (loop for u in output-layers
                 do (insert-tabular-db! F/a-exp-db (list :output-layer u :time time-step
-                                                    :value (partial-deriv-SSE (if (member u final-output-layers)
-                                                                                  (getf target u)
-                                                                                  nil)
-                                                                              (get-neuron-output (get-layer lddn u))
-                                                                              (if (member u final-output-layers) t nil)))))
+                                                        :value (partial-deriv-SSE (if (member u final-output-layers)
+                                                                                      (getf target u)
+                                                                                      nil)
+                                                                                  (get-neuron-output (get-layer lddn u))
+                                                                                  (if (member u final-output-layers) t nil)))))
 
           (dolist (m bp-order) ;for m decremented through the BP order
             (format t "~&Loop for backpropagation order: ~d~%" m)
@@ -945,7 +945,6 @@ and the result returned is a list of such plists."
               (calc-explicit-deriv-a/x lddn u time-step :iw) ;calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ(d))ᵀ
               (calc-explicit-deriv-a/x lddn u time-step :lw) ;calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ(d))ᵀ
               (calc-explicit-deriv-a/x lddn u time-step :b) ;calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ
-
 
               ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :type :to :from :delay :value)
               ;;parameter-indices (list :layer layer-id :type :iw :from id :delay delay)
@@ -1029,7 +1028,7 @@ and the result returned is a list of such plists."
                                    (alexandria:if-let (sens (query-tabular-db-value sens-db (list :to u :from m) :value))
                                      sens
                                      (calc-default-sens lddn u m)))))
-                         )))
+                           )))
               ));end for dolist (u simul-order)
 
           ;; accumulate ∂F/∂x here, equation(14.20)
