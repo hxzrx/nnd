@@ -375,9 +375,9 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (bp-order (reverse simul-order))
          (sens-matrix-db (make-tabular-db (list :to :from :value))) ;S^{:to,:from}
          (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
-         (a/x-deriv-db (make-tabular-db (list :layer :time :param-type :to :from :delay :value))) ;param-type is {:lw :iw :b}
-         (a/x-deriv-exp-db (make-tabular-db (list :layer :time :param-type :to :from :delay :value))) ;param-type is {:lw :iw :b}
-         (F/x-deriv-db (make-tabular-db (list :layer :param-type :from :delay :value)))
+         (a/x-deriv-db (make-tabular-db (list :layer :time :type :to :from :delay :value))) ;type is {:lw :iw :b}
+         (a/x-deriv-exp-db (make-tabular-db (list :layer :time :type :to :from :delay :value))) ;type is {:lw :iw :b}
+         (F/x-deriv-db (make-tabular-db (list :layer :type :from :delay :value)))
          )
     (make-instance 'lddn :inputs inputs
                          :input-to input-to
@@ -784,6 +784,82 @@ and the result returned is a list of such plists."
       (format t "~&<calc-explicit-deriv-output/x>:type: ~d~&~d~%" type res)
       res)))
 
+
+(defmethod calc-explicit-deriv-a/x ((lddn lddn) layer-u time-step type)
+  "calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ(d))ᵀ or ∂ᵉaᵘ(t)/∂vec(LWᵐˡ(d))ᵀ"
+  (with-slots ((input-layers input-layers)
+               (raw-input-layers raw-input-layers)
+               (input-to input-to)
+               (bp-order bp-order)
+               (sens-db sens-matrix-db)
+               (a/x-exp-db a/x-deriv-exp-db)
+               (network-input-cache network-input-cache)
+               (network-output-cache network-output-cache)) lddn
+    (cond
+      ((eq type :iw)
+       (loop for l in raw-input-layers
+             do (loop for m in (second (assoc l input-to))
+                      do (progn
+                           (format t "calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ) for u=~d, m=~d, l=~d~%" layer-u m l)
+                           (loop for delay in (query-tdl-delays (get-layer-network-input-weight (get-layer lddn m) l))
+                                 do (progn
+                                      (alexandria:when-let (sens (query-tabular-db-value sens-db (list :to layer-u :from m) :value))
+                                        (insert-tabular-db!
+                                         a/x-exp-db
+                                         (list :layer layer-u
+                                               :time time-step
+                                               :type :iw
+                                               :to m
+                                               :from l
+                                               :delay delay
+                                               :value  (kroncker-product
+                                                        (get-nth-content (second (assoc l network-input-cache)) delay)
+                                                        sens))))
+                                      ))))))
+
+      ((eq type :lw)
+           (loop for l in input-layers
+                 do (loop for m in (get-link-to (get-layer lddn l))
+                          do (progn
+                               (format t "calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ) for u=~d, m=~d, l=~d~%" layer-u m l)
+                               (loop for delay in (query-tdl-delays (get-layer-weight (get-layer lddn m) l))
+                                     for delay-type = (get-tdl-type (get-layer-weight (get-layer lddn m) l))
+                                     do (progn
+                                          (alexandria:when-let (sens (query-tabular-db-value sens-db (list :to layer-u :from m) :value))
+                                            (insert-tabular-db!
+                                             a/x-exp-db
+                                             (list :layer layer-u
+                                                   :time time-step
+                                                   :type :lw
+                                                   :to m
+                                                   :from l
+                                                   :delay delay
+                                                   :value (kroncker-product
+                                                           (get-nth-content (second (assoc l network-output-cache))
+                                                                            (- delay (query-tdl-delay-base
+                                                                                      (get-layer-weight (get-layer lddn m) l))))
+                                                           sens))))))))))
+
+
+          ((eq type :b)
+           ;;calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ, need only 2 parameters: u and m, so we set both :to and :from to m
+           (loop for m in bp-order
+                 do (progn
+                      (format t "calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ: u=~d, m=~d~%" layer-u m)
+                      ;; query not in sens-db will be treated as not a explicit partial derivative
+                      (alexandria:when-let (sens (query-tabular-db-value sens-db (list :to layer-u :from m) :value))
+                        (insert-tabular-db! a/x-exp-db
+                                            (list :layer layer-u
+                                                  :time time-step
+                                                  :type :b
+                                                  :to m
+                                                  :from m
+                                                  :value sens))))))
+          (t (format t "Invalid type <~d> in METHOD calc-explicit-deriv-a/x" type))
+
+          )))
+
+
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
   (let* ((time-step 0))
@@ -797,7 +873,7 @@ and the result returned is a list of such plists."
                  (output-layers output-layers)
                  (final-output-layers final-output-layers)
                  (sens-db sens-matrix-db)
-                 (F/a-db F/a-deriv-exp-db)
+                 (F/a-exp-db F/a-deriv-exp-db)
                  (a/x-exp-db a/x-deriv-exp-db)
                  (a/x-deriv-db a/x-deriv-db)
                  (F/x-deriv-db F/x-deriv-db) ;the gradient to be returned
@@ -808,7 +884,7 @@ and the result returned is a list of such plists."
         (incf time-step)
         ;; some db's should be truncated in the beginning of each sample
         (truncate-tabular-db! sens-db)
-        (truncate-tabular-db! F/a-db)
+        (truncate-tabular-db! F/a-exp-db)
         (truncate-tabular-db! a/x-exp-db)
 
         (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
@@ -821,17 +897,12 @@ and the result returned is a list of such plists."
                )
           ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
           (loop for u in output-layers
-                do (insert-tabular-db! F/a-db (list :output-layer u :time time-step
+                do (insert-tabular-db! F/a-exp-db (list :output-layer u :time time-step
                                                     :value (partial-deriv-SSE (if (member u final-output-layers)
                                                                                   (getf target u)
                                                                                   nil)
                                                                               (get-neuron-output (get-layer lddn u))
                                                                               (if (member u final-output-layers) t nil)))))
-          #+:ignore
-          (dolist (u output-layers) ;this dolist seems not necessarily since they are default nil if not specified
-            (assert (member u simul-order)) ;make sure u is not nil, will remove this line later
-            (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u nil)) ; $E_S(u) = \Phi$
-            (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u nil))) ; $E_S^X(u)=\Phi$
 
           (dolist (m bp-order) ;for m decremented through the BP order
             (format t "~&Loop for backpropagation order: ~d~%" m)
@@ -871,70 +942,14 @@ and the result returned is a list of such plists."
           (dolist (u simul-order)
             (format t "~&Loop for simulation order: ~d~%" u)
             (when (member u output-layers)
-              ;;calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ(d))ᵀ
-              (loop for l in raw-input-layers
-                    do (loop for m in (second (assoc l input-to))
-                             do (progn
-                                  (format t "calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ) for u=~d, m=~d, l=~d~%" u m l)
-                                  (loop for delay in (query-tdl-delays (get-layer-network-input-weight (get-layer lddn m) l))
-                                        do (progn
-                                             (alexandria:when-let (sens (query-tabular-db-value sens-db
-                                                                                                (list :to u :from m) :value))
-                                               (insert-tabular-db!
-                                                a/x-exp-db
-                                                (list :layer u
-                                                      :time time-step
-                                                      :param-type :iw
-                                                      :to m
-                                                      :from l
-                                                      :delay delay
-                                                      :value  (kroncker-product
-                                                               (get-nth-content (second (assoc l network-input-cache)) delay)
-                                                               sens))))
-                                             )))))
+              (calc-explicit-deriv-a/x lddn u time-step :iw) ;calc ∂ᵉaᵘ(t)/∂vec(IWᵐˡ(d))ᵀ
+              (calc-explicit-deriv-a/x lddn u time-step :lw) ;calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ(d))ᵀ
+              (calc-explicit-deriv-a/x lddn u time-step :b) ;calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ
 
-              ;;calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ(d))ᵀ
-              (loop for l in input-layers
-                    do (loop for m in (get-link-to (get-layer lddn l))
-                             do (progn
-                                  (format t "calc ∂ᵉaᵘ(t)/∂vec(LWᵐˡ) for u=~d, m=~d, l=~d~%" u m l)
-                                  (loop for delay in (query-tdl-delays (get-layer-weight (get-layer lddn m) l))
-                                        for delay-type = (get-tdl-type (get-layer-weight (get-layer lddn m) l))
-                                        do (progn
-                                             (alexandria:when-let (sens (query-tabular-db-value sens-db
-                                                                                                (list :to u :from m) :value))
-                                               (insert-tabular-db!
-                                                a/x-exp-db
-                                                (list :layer u
-                                                      :time time-step
-                                                      :param-type :lw
-                                                      :to m
-                                                      :from l
-                                                      :delay delay
-                                                      :value  (kroncker-product
-                                                               (get-nth-content (second (assoc l network-output-cache))
-                                                                                (- delay (query-tdl-delay-base
-                                                                                          (get-layer-weight (get-layer lddn m) l))))
-                                                               sens))))
-                                             )))))
 
-              ;;calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ, need only 2 parameters: u and m, so we set both :to and :from to m
-              (loop for m in bp-order
-                    do (progn
-                         (format t "calc ∂ᵉaᵘ(t)/∂(bᵐ)ᵀ: u=~d, m=~d~%" u m)
-                         ;; query not in sens-db will be treated as not a explicit partial derivative
-                         (alexandria:when-let (sens (query-tabular-db-value sens-db (list :to u :from m) :value))
-                                    (insert-tabular-db! a/x-exp-db
-                                                        (list :layer u
-                                                              :time time-step
-                                                              :param-type :b
-                                                              :to m
-                                                              :from m
-                                                              :value sens)))))
-
-              ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
+              ;; calc ∂a(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :type :to :from :delay :value)
               ;;parameter-indices (list :layer layer-id :type :iw :from id :delay delay)
-              ;;a/x-deriv-db (list :layer :time :param-type :to :from :delay :value)
+              ;;a/x-deriv-db (list :layer :time :type :to :from :delay :value)
               (loop for index-plist in parameter-indices
                     do (let ((m (getf index-plist :layer))
                              (x-type (getf index-plist :type))
@@ -945,7 +960,7 @@ and the result returned is a list of such plists."
                             (format t "calc iw for u=~d, m=~d~%" u m)
                             (insert-tabular-db!
                              a/x-deriv-db
-                             (list :layer u :time time-step :param-type :iw :to m :from l :delay delay
+                             (list :layer u :time time-step :type :iw :to m :from l :delay delay
                                    :value
                                    (let ((sigmas (loop for x in (query-E-S-X lddn u)
                                                        when (query-tabular-db-value sens-db (list :to u :from x) :value)
@@ -963,7 +978,7 @@ and the result returned is a list of such plists."
                                                                                                 (query-tabular-db-value
                                                                                                  a/x-deriv-db (list :layer u
                                                                                                                     :time (- time-step d)
-                                                                                                                    :param-type :iw
+                                                                                                                    :type :iw
                                                                                                                     :to x
                                                                                                                     :from u-tmp
                                                                                                                     :delay d)
@@ -978,7 +993,7 @@ and the result returned is a list of such plists."
                             (format t "calc lw for u=~d, m=~d~%" u m)
                             (insert-tabular-db!
                              a/x-deriv-db
-                             (list :layer u :time time-step :param-type :lw :to m :from l :delay delay
+                             (list :layer u :time time-step :type :lw :to m :from l :delay delay
                                    :value
                                    (let ((sigmas (loop for x in (query-E-S-X lddn u)
                                                        when (query-tabular-db-value sens-db (list :to u :from x) :value)
@@ -996,7 +1011,7 @@ and the result returned is a list of such plists."
                                                                                                 (query-tabular-db-value
                                                                                                  a/x-deriv-db (list :layer u
                                                                                                                     :time (- time-step d)
-                                                                                                                    :param-type :lw
+                                                                                                                    :type :lw
                                                                                                                     :to x
                                                                                                                     :from u-tmp
                                                                                                                     :delay d)
@@ -1009,7 +1024,7 @@ and the result returned is a list of such plists."
                             (format t "calc bias for u=~d, m=~d~%" u m)
                             (insert-tabular-db!
                              a/x-deriv-db
-                             (list :layer u :time time-step :param-type :b :to m
+                             (list :layer u :time time-step :type :b :to m
                                    :value
                                    (alexandria:if-let (sens (query-tabular-db-value sens-db (list :to u :from m) :value))
                                      sens
@@ -1019,24 +1034,24 @@ and the result returned is a list of such plists."
 
           ;; accumulate ∂F/∂x here, equation(14.20)
           ;;parameter-indices '(:layer :type :type :from :delay)
-          ;;a/x-deriv-db '(:layer :time :param-type :to :from :delay :value)
-          ;;F/x-deriv-db '(:layer :param-type :from :delay :value)
+          ;;a/x-deriv-db '(:layer :time :type :to :from :delay :value)
+          ;;F/x-deriv-db '(:layer :type :from :delay :value)
           ;;F/a-deriv-exp-db (list :output-layer :time :value)
-          ;;(format t "~&F/a-deriv-exp-db:~&~d~%" F/a-db)
+          ;;(format t "~&F/a-deriv-exp-db:~&~d~%" F/a-exp-db)
           (loop for index-plist in parameter-indices ;parameter-indices of x, independent to u
                 do (let* ((layer (getf index-plist :layer))
                           (type  (getf index-plist :type))
                           (from  (getf index-plist :from))
                           (delay (getf index-plist :delay))
                           (F/x-query (if (eq type :b)
-                                         (list :layer layer :param-type :b)
-                                         (list :layer layer :param-type type :from from :delay delay)))
+                                         (list :layer layer :type :b)
+                                         (list :layer layer :type type :from from :delay delay)))
                           ;;(tmp-var (format t "idx-plist: ~d~%" index-plist))
                           (this-res
                             (reduce #'matrix-product
                                     (loop for u in output-layers
                                           when (null (matrix-zeros-p (query-tabular-db-value
-                                                                      F/a-db
+                                                                      F/a-exp-db
                                                                       (list :output-layer u :time time-step) :value)))
                                             collect (matrix-product
                                                      (ecase type
@@ -1044,22 +1059,22 @@ and the result returned is a list of such plists."
                                                         (transpose (query-tabular-db-value a/x-deriv-db
                                                                                            (list :layer u
                                                                                                  :time time-step
-                                                                                                 :param-type type
+                                                                                                 :type type
                                                                                                  :to layer
                                                                                                  :from from
                                                                                                  :delay delay)
                                                                                            :value)))
-                                                       ;;bias '(:layer :time :param-type :b :to :value)
+                                                       ;;bias '(:layer :time :type :b :to :value)
                                                        (:b (transpose (query-tabular-db-value a/x-deriv-db
                                                                                               (list :layer u
                                                                                                     :time time-step
-                                                                                                    :param-type :b
+                                                                                                    :type :b
                                                                                                     :to layer)
                                                                                               :value))))
-                                                     (query-tabular-db-value F/a-db
+                                                     (query-tabular-db-value F/a-exp-db
                                                                              (list :output-layer u :time time-step)
                                                                              :value))))))
-                     ;;(F/x-deriv-db (make-tabular-db (list :layer :param-type :delay :value))
+                     ;;(F/x-deriv-db (make-tabular-db (list :layer :type :delay :value))
                      ;;(format t "F/x-query: ~d~&" F/x-query)
                      ;;(format t "a/x-deriv-db a/x=~&~d~%" a/x-deriv-db)
                      ;;(format t "deriv F/x=~&~d~%" this-res)
