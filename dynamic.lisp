@@ -351,6 +351,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                  :documentation "partial derivatives of performance function to the output of the output layers")
    (F/x-deriv-db :initarg :F/x-deriv-db :accessor F/x-deriv-db :type tabular-db
                  :documentation "partial derivatives of performance function to network parameters")
+   (F/n-deriv-db :initarg :F/n-deriv-db :accessor F/n-deriv-db :type tabular-db
+                 :documentation "$d^m$, partial derivaties of performance function to net input of each layer")
    (a/x-deriv-exp-db :initarg :a/x-deriv-exp-db :accessor a/x-deriv-exp-db :type tabular-db
                  :documentation "explicit partial derivatives of output of the output layers to network parameters")
    (a/x-deriv-db :initarg :a/x-deriv-db :accessor a/x-deriv-db :type tabular-db
@@ -380,6 +382,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (sens-matrix-db (make-tabular-db (list :to :from :value))) ;S^{:to,:from}
          (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
          (F/a-deriv-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
+         (F/n-deriv-db (make-tabular-db (list :layer :value))) ;d^m for all layers
          (F/x-deriv-db (make-tabular-db (list :layer :type :from :delay :value)))
          (a/x-deriv-db (make-tabular-db (list :layer :time :type :to :from :delay :value))) ;type is {:lw :iw :b}
          (a/x-deriv-exp-db (make-tabular-db (list :layer :time :type :to :from :delay :value))) ;type is {:lw :iw :b}
@@ -395,6 +398,7 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                          :F/a-deriv-exp-db F/a-deriv-exp-db
                          :F/a-deriv-db F/a-deriv-db
                          :F/x-deriv-db F/x-deriv-db
+                         :F/n-deriv-db F/n-deriv-db
                          :a/x-deriv-db a/x-deriv-db
                          :a/x-deriv-exp-db a/x-deriv-exp-db
                          :config config)))
@@ -871,6 +875,11 @@ and the result returned is a list of such plists."
                                                   :value sens))))))
           (t (format t "Invalid type <~d> in METHOD calc-explicit-deriv-a/x" type))
           )))
+
+(defmethod calc-deriv-F/n ((lddn lddn) layer-m)
+  "Equation (14.52), $d^m(t)$"
+  (with-slots ((layer-id-list simul-order)) lddn
+
 
 (defmethod calc-deriv-F/a! ((lddn lddn) layer-u time-step samples-num)
   "Equation (14.63), calc ∂F/aᵘ(t), used in bptt"
