@@ -611,12 +611,21 @@ delay-base, see the delay base definition in query-tdl-delay-base(network input 
     (get-nth-content (second (assoc output-id output-alist)) (- delay delay-base))))
 
 (defmethod query-E-S-X ((lddn lddn) layer-id)
-  "get $E_S_X(u)$"
+  "get $E_S^X(u)$"
   (exist-sens-input-layer (get-layer lddn layer-id)))
+
+(defmethod query-E-S-U ((lddn lddn) layer-id)
+  "get $E_S^U(x)"
+  (with-slots ((alist E-S-U-alist)) lddn
+    (second (assoc layer-id alist))))
 
 (defmethod query-E-LW-U ((lddn lddn) layer-id)
   "get $E_{LW}^U(u)$"
   (exist-lw-from-output (get-layer lddn layer-id)))
+
+(defmethod query-E-LW-X ((lddn lddn) layer-id)
+  "get $E_{LW}^X(u)$"
+  (exist-lw-from-input (get-layer lddn layer-id)))
 
 (defmethod query-delay-link ((lddn lddn) to-layer-id from-layer-id)
   "get $DL_{to,from}$"
@@ -863,15 +872,34 @@ and the result returned is a list of such plists."
           (t (format t "Invalid type <~d> in METHOD calc-explicit-deriv-a/x" type))
           )))
 
-(defmethod calc-deriv-F/a! ((lddn lddn) layer-u time-step)
+(defmethod calc-deriv-F/a! ((lddn lddn) layer-u time-step samples-num)
   "Equation (14.63), calc ∂F/aᵘ(t), used in bptt"
   (with-slots ((parameter-indices parameter-indices)
-              (F/a-exp-db F/a-deriv-exp-db)
-              (F/a-db F/a-deriv-db)
-              (sens-db sens-matrix-db)
-              ) lddn
-
-    ))
+               (F/a-exp-db F/a-deriv-exp-db) ;(:output-layer :time :value)
+               (F/a-db F/a-deriv-db) ;(:output-layer :time :value)
+               (sens-db sens-matrix-db) ; sens-db should extend a time key to query in bptt, but this is not needed in rtrl
+               ) lddn
+    (let ((F/a-exp-deriv (query-tabular-db-value F/a-exp-db (list :output-layer layer-u :time time-step) :value))
+          (sigmas
+            (reduce #'matrix-add
+                    (loop for x in (query-E-LW-X lddn layer-u)
+                          collect
+                          (loop for d in (query-delay-link lddn x layer-u)
+                                do (matrix-product
+                                    (transpose (query-lw-nth-delay (get-layer lddn x) layer-u d))
+                                    (reduce #'matrix-add
+                                            (loop for u-temp in (query-E-S-U lddn x)
+                                                  when (<= (+ time-step d) samples-num)
+                                                    collect
+                                                    (matrix-product
+                                                     (transpose (query-tabular-db-value sens-db
+                                                                                        (list :to u-temp :from x :time time-step)
+                                                                                        :value))
+                                                     (query-tabular-db-value F/a-db
+                                                                             (list :output-layer u-temp :time (+ time-step d))
+                                                                             :value))))))))))
+      (insert-tabular-db! F/a-db (list :output-layer layer-u :time time-step
+                                       :value (matrix-add F/a-exp-deriv sigmas))))))
 
 (defmethod calc-deriv-a/x! ((lddn lddn) layer-u time-step)
   "Equation (14.34), calc ∂aᵘ(t)/∂xᵀ, used in rtrl, a/x-deriv-db (list :layer :time :type :to :from :delay :value)
@@ -971,7 +999,8 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                (sens-db sens-matrix-db)
                (F/a-exp-db F/a-deriv-exp-db)
                )lddn
-    (let* ((time-step (length samples)))
+    (let* ((samples-num (length samples))
+           (time-step samples-num))
       (dolist (sample (reverse samples))
         (decf time-step)
 
@@ -1026,8 +1055,19 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
           (setf E-S-U exist-sens-output-layer) ;save to the slot of lddn
 
           ;;Equation (14.63)
+          (dolist (u bp-order)
+            (format t "~&Loop for simulation order, calc  ∂Fᵘ/∂aᵘ(~d): ~d~%" u time-step)
+            (when (member u output-layers)
+              ;;calc calc ∂Fᵘ/∂aᵘ(t)
+              (calc-deriv-F/a! lddn u time-step samples-num)))
 
-          )))))
+          #+:ignore
+          (dolist (m simul-order)
+            (calc-d^m lddn))
+          ) ;let*
+        ;; calc ∂F/∂x
+        ;; ....
+        ))))
 
 (defmethod calc-rtrl-gradient ((lddn lddn) (samples list))
   "Real-Time Recurrent Learning Gradient"
