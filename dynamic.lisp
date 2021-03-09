@@ -1274,7 +1274,9 @@ for the case of multiple targets (more than one output to compare with the targe
 for simplicity, we assume that where's only one target.
 "
   (let* ((lddn (make-lddn :config lddn-config-p14.1))
-         (samples (list '((1 ((1) (1) (1))) (10 1)) )))
+         (samples (list '((1 ((1) (1) (1))) (10 1))
+                        '((1 ((1) (1) (1))) (10 1))
+                        '((1 ((1) (1) (1))) (10 1)) )))
     ;;(format t "~&Parameter indices:~&~{~d~^~%~}~%" (enum-lddn-parameter-indices lddn))
     ;(format t "~&All samples: ~d~%" samples)
     (calc-bptt-gradient lddn samples)))
