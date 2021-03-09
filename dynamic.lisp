@@ -379,10 +379,10 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (final-output-layers (getf config :output))
          (simul-order (getf config :order))
          (bp-order (reverse simul-order))
-         (sens-matrix-db (make-tabular-db (list :to :from :value))) ;S^{:to,:from}
+         (sens-matrix-db (make-tabular-db (list :to :from :time :value))) ;S^{:to,:from}
          (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
          (F/a-deriv-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
-         (F/n-deriv-db (make-tabular-db (list :layer :value))) ;d^m for all layers
+         (F/n-deriv-db (make-tabular-db (list :layer :time :value))) ;d^m for all layers
          (F/x-deriv-db (make-tabular-db (list :layer :type :from :delay :value)))
          (a/x-deriv-db (make-tabular-db (list :layer :time :type :to :from :delay :value))) ;type is {:lw :iw :b}
          (a/x-deriv-exp-db (make-tabular-db (list :layer :time :type :to :from :delay :value))) ;type is {:lw :iw :b}
@@ -876,9 +876,19 @@ and the result returned is a list of such plists."
           (t (format t "Invalid type <~d> in METHOD calc-explicit-deriv-a/x" type))
           )))
 
-(defmethod calc-deriv-F/n ((lddn lddn) layer-m)
+(defmethod calc-deriv-F/n! ((lddn lddn) layer-m time-step)
   "Equation (14.52), $d^m(t)$"
-  (with-slots ((layer-id-list simul-order)) lddn
+  (with-slots ((layer-id-list simul-order)
+               (F/n-db F/n-deriv-db) ;d^m(t), (:layer :time :value)
+               (sens-db sens-matrix-db)
+               (F/a-db F/a-deriv-db)) lddn
+    (dolist (m layer-id-list)
+      (let ((d^m
+              (loop for u in (query-E-S-U lddn m)
+                    collect (matrix-product
+                             (transpose (query-tabular-db-value sens-db (list :to u :from m :time time-step) :value))
+                             (query-tabular-db-value F/a-db (list :output-layer u :time time-step) :value)))))
+        (insert-tabular-db! F/n-db (list :layer m :time time-step :value d^m))))))
 
 
 (defmethod calc-deriv-F/a! ((lddn lddn) layer-u time-step samples-num)
@@ -1002,11 +1012,17 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
   (with-slots ((bp-order bp-order)
+               (simul-order simul-order)
                (output-layers output-layers)
                (final-output-layers final-output-layers)
+               (network-input-cache network-input-cache)
+               (network-output-cache network-output-cache)
                (E-S-U E-S-U-alist)
                (sens-db sens-matrix-db)
                (F/a-exp-db F/a-deriv-exp-db)
+               (F/x-deriv-db F/x-deriv-db) ;the gradient to be returned
+               (F/n-db F/n-deriv-db)
+               (parameter-indices parameter-indices)
                )lddn
     (let* ((samples-num (length samples))
            (time-step samples-num))
@@ -1070,13 +1086,43 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
               ;;calc calc ∂Fᵘ/∂aᵘ(t)
               (calc-deriv-F/a! lddn u time-step samples-num)))
 
-          #+:ignore
           (dolist (m simul-order)
-            (calc-d^m lddn))
+            (calc-deriv-F/n! lddn m time-step))
           ) ;let*
-        ;; calc ∂F/∂x
-        ;; ....
-        ))))
+        );(dolist (sample (reverse samples))
+
+      ;; calc ∂F/∂x
+      (loop for time-step from 1 to samples-num
+            do (loop for index-plist in parameter-indices ;parameter-indices of x, independent to u
+                     do (let* ((layer (getf index-plist :layer))
+                               (type  (getf index-plist :type))
+                               (from  (getf index-plist :from))
+                               (delay (getf index-plist :delay))
+                               (F/x-query (if (eq type :b)
+                                              (list :layer layer :type :b)
+                                              (list :layer layer :type type :from from :delay delay)))
+                               (dm (query-tabular-db-value F/n-db
+                                                           (list :layer layer :time time-step)
+                                                           :value)) ;(:layer :time :value)
+                               (input-l (get-nth-content (second (assoc from network-input-cache)) delay))
+                               (output-l (get-nth-content (second (assoc from network-output-cache))
+                                                         (- delay (query-tdl-delay-base
+                                                                   (get-layer-weight (get-layer lddn layer) from)))))
+                               (this-res (ecase type
+                                           (:lw (matrix-product dm (transpose output-l)))
+                                           (:iw (matrix-product dm (transpose input-l)))
+                                           (:b  dm)))
+                               )
+                          (format t "insert or update F/x-deriv-db, index=~d~%" index-plist)
+                          (when (> (- time-step delay) 0)
+                            (alexandria:if-let ((pre-accu (query-tabular-db-value F/x-deriv-db F/x-query :value)))
+                              (update-tabular-db! F/x-deriv-db F/x-query (list :value (matrix-add pre-accu this-res)))
+                              (insert-tabular-db! F/x-deriv-db (append F/x-query (list :value this-res)))))
+                          )))
+      )
+    F/x-deriv-db
+    )) ; the out most let*
+
 
 (defmethod calc-rtrl-gradient ((lddn lddn) (samples list))
   "Real-Time Recurrent Learning Gradient"
@@ -1394,7 +1440,7 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
     (format t "~d~%" output)))
 
 
-(defun test-calc-bptt-gradient-p14.1 ()
+(defun test-calc-rtrl-gradient-p14.1 ()
   "each sample is a list of input and outputs, and it has this format:
 (list (list  input-id1 input-vector1 input-id2 input-vector2 ...)
       (list output-id1 target-vector1 output-id2 target-vector2 ...))
