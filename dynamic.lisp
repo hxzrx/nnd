@@ -347,6 +347,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                    :documentation "sensitivity matrices")
    (F/a-deriv-exp-db :initarg :F/a-deriv-exp-db :accessor F/a-deriv-exp-db :type tabular-db
                      :documentation "explicit partial derivatives of performance function to the output of the output layers")
+   (F/a-deriv-db :initarg :F/a-deriv-db :accessor F/a-deriv-db :type tabular-db
+                 :documentation "partial derivatives of performance function to the output of the output layers")
    (F/x-deriv-db :initarg :F/x-deriv-db :accessor F/x-deriv-db :type tabular-db
                  :documentation "partial derivatives of performance function to network parameters")
    (a/x-deriv-exp-db :initarg :a/x-deriv-exp-db :accessor a/x-deriv-exp-db :type tabular-db
@@ -355,6 +357,8 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                  :documentation "partial derivatives of output of the output layers to network parameters")
    (E-S-X-alist :initarg :E-S-X-alist :accessor E-S-X-alist :type list :initform nil
                 :documentation "$E_S^X$, alist of E-S-X associated with layer id")
+   (E-S-U-alist :initarg :E-S-U-alist :accessor E-S-U-alist :type list :initform nil
+                :documentation "$E_S^U$, alist of E-S-U associated with layer id")
    (parameter-indices :initarg :parameter-indices :accessor parameter-indices :type list :initform nil
                       :documentation "a list of plist that can be used to locate a specified parameter(iw, lw, bias). see the doc of enum-lddn-parameter-indices")
    )
@@ -375,9 +379,10 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
          (bp-order (reverse simul-order))
          (sens-matrix-db (make-tabular-db (list :to :from :value))) ;S^{:to,:from}
          (F/a-deriv-exp-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
+         (F/a-deriv-db (make-tabular-db (list :output-layer :time :value))) ;∂Fᵉ/∂aᵘ for all u,  here, F is SSE
+         (F/x-deriv-db (make-tabular-db (list :layer :type :from :delay :value)))
          (a/x-deriv-db (make-tabular-db (list :layer :time :type :to :from :delay :value))) ;type is {:lw :iw :b}
          (a/x-deriv-exp-db (make-tabular-db (list :layer :time :type :to :from :delay :value))) ;type is {:lw :iw :b}
-         (F/x-deriv-db (make-tabular-db (list :layer :type :from :delay :value)))
          )
     (make-instance 'lddn :inputs inputs
                          :input-to input-to
@@ -388,11 +393,11 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
                          :bp-order bp-order
                          :sens-matrix-db sens-matrix-db
                          :F/a-deriv-exp-db F/a-deriv-exp-db
+                         :F/a-deriv-db F/a-deriv-db
+                         :F/x-deriv-db F/x-deriv-db
                          :a/x-deriv-db a/x-deriv-db
                          :a/x-deriv-exp-db a/x-deriv-exp-db
-                         :F/x-deriv-db F/x-deriv-db
-                         :config config)
-    ))
+                         :config config)))
 
 (defmethod initialize-instance :after ((lddn lddn) &key config  &allow-other-keys)
   "initialize network-output slot of lddn,
@@ -858,8 +863,18 @@ and the result returned is a list of such plists."
           (t (format t "Invalid type <~d> in METHOD calc-explicit-deriv-a/x" type))
           )))
 
+(defmethod calc-deriv-F/a! ((lddn lddn) layer-u time-step)
+  "Equation (14.63), calc ∂F/aᵘ(t), used in bptt"
+  (with-slots ((parameter-indices parameter-indices)
+              (F/a-exp-db F/a-deriv-exp-db)
+              (F/a-db F/a-deriv-db)
+              (sens-db sens-matrix-db)
+              ) lddn
+
+    ))
+
 (defmethod calc-deriv-a/x! ((lddn lddn) layer-u time-step)
-  "Equation (14.34), calc ∂aᵘ(t)/∂xᵀ here, a/x-deriv-db (list :layer :time :type :to :from :delay :value)
+  "Equation (14.34), calc ∂aᵘ(t)/∂xᵀ, used in rtrl, a/x-deriv-db (list :layer :time :type :to :from :delay :value)
 parameter-indices (list :layer layer-id :type :iw :from id :delay delay)
 a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
   (with-slots ((parameter-indices parameter-indices)
@@ -947,9 +962,75 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                          (calc-default-sens lddn layer-u m)))))
                )))))
 
-
 (defmethod calc-bptt-gradient ((lddn lddn) (samples list))
   "Backpropagation-Through-Time Gradient"
+  (with-slots ((bp-order bp-order)
+               (output-layers output-layers)
+               (final-output-layers final-output-layers)
+               (E-S-U E-S-U-alist)
+               (sens-db sens-matrix-db)
+               (F/a-exp-db F/a-deriv-exp-db)
+               )lddn
+    (let* ((time-step (length samples)))
+      (dolist (sample (reverse samples))
+        (decf time-step)
+
+        ;;trancate some db here
+        ;;....
+
+        (calc-lddn-output! lddn sample)
+        (calc-init-sens-insert-db! lddn)
+
+        (let* ((target (second sample))
+               (output-layers-tmp nil)  ; $U'$
+               (exist-sens-layer nil) ;$E_S(u)$, an alist which associate the layers that has non-zero sensitivities with the key
+               (exist-sens-output-layer nil)) ;$E_S^U(u)$, difference from rtrl
+          ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
+          (loop for u in output-layers
+                do (insert-tabular-db! F/a-exp-db
+                                       (list :output-layer u :time time-step
+                                             :value (partial-deriv-SSE (if (member u final-output-layers)
+                                                                           (getf target u)
+                                                                           nil)
+                                                                       (get-neuron-output (get-layer lddn u))
+                                                                       (if (member u final-output-layers) t nil)))))
+
+          (dolist (m bp-order) ;for m decremented through the BP order
+            (format t "~&Loop for backpropagation order: ~d~%" m)
+            (let* ((layer-m (get-layer lddn m))
+                   (link-backward-m (get-link-backward layer-m))) ;$L_m^b$
+              (dolist (u output-layers-tmp)
+                (alexandria:when-let (exi-sens-u (second (assoc u exist-sens-layer)))
+                  (alexandria:when-let (intersect (intersection exi-sens-u link-backward-m))
+                    ;;calc $S^{u,m}$, equation (14.38)
+                    (let ((sens-matrix-u-m
+                            (matrix-product
+                             (reduce #'matrix-add
+                                     (loop for l in intersect
+                                           collect
+                                           (matrix-product
+                                            (query-tabular-db-value sens-db (list :to u :from l) :value)
+                                            (first (get-tdl-effective-content
+                                                    (get-layer-weight (get-layer lddn l) m))))))
+                             (query-tabular-db-value sens-db (list :to m :from m) :value))))
+                      (insert-tabular-db! sens-db (list :to u :from m :value sens-matrix-u-m)))
+                    (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
+                    (setf exist-sens-output-layer (alist-create-or-adjoin exist-sens-output-layer m u))))) ;difference from rtrl
+
+              (when (member m output-layers)
+                ;;the calculating of $S^{m,m}(t)=\dot{F}^m(n^m(t))$ was batch set after calc-lddn-output!
+                (setf output-layers-tmp (adjoin m output-layers-tmp))
+                (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer m m))
+                (setf exist-sens-output-layer (alist-create-or-adjoin exist-sens-output-layer m m)))
+              )) ;(dolist (m bp-order)
+          (setf E-S-U exist-sens-output-layer) ;save to the slot of lddn
+
+          ;;Equation (14.63)
+
+          )))))
+
+(defmethod calc-rtrl-gradient ((lddn lddn) (samples list))
+  "Real-Time Recurrent Learning Gradient"
   (with-slots ((bp-order bp-order)
                (simul-order simul-order)
                (input-to input-to)
@@ -981,8 +1062,7 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
         (let* ((target (second sample))
                (output-layers-tmp nil)  ; $U'$
                (exist-sens-layer nil) ;$E_S(u)$, an alist which associate the layers that has non-zero sensitivities with the key
-               (exist-sens-input-layer nil) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids
-               )
+               (exist-sens-input-layer nil)) ; $E_S^X(u)$, an alist like exist-sens, but only for the input layers' ids(target (second sample))
           ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
           (loop for u in output-layers
                 do (insert-tabular-db! F/a-exp-db
@@ -1012,10 +1092,10 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                                     (get-layer-weight (get-layer lddn l) m))))))
                              (query-tabular-db-value sens-db (list :to m :from m) :value))))
                       (insert-tabular-db! sens-db (list :to u :from m :value sens-matrix-u-m)))
-
                     (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
                     (when (member m input-layers)
                       (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u m))))))
+
               (when (member m output-layers)
                 ;;the calculating of $S^{m,m}(t)=\dot{F}^m(n^m(t))$ was batch set after calc-lddn-output!
                 (setf output-layers-tmp (adjoin m output-layers-tmp))
@@ -1279,4 +1359,4 @@ for simplicity, we assume that where's only one target.
                         '((1 ((1) (1) (1))) (10 1)) )))
     ;;(format t "~&Parameter indices:~&~{~d~^~%~}~%" (enum-lddn-parameter-indices lddn))
     ;(format t "~&All samples: ~d~%" samples)
-    (calc-bptt-gradient lddn samples)))
+    (calc-rtrl-gradient lddn samples)))
