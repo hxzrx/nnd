@@ -985,12 +985,13 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                )
           ;; calc ∂Fᵉ/∂aᵘ for all u,  here, F is SSE
           (loop for u in output-layers
-                do (insert-tabular-db! F/a-exp-db (list :output-layer u :time time-step
-                                                        :value (partial-deriv-SSE (if (member u final-output-layers)
-                                                                                      (getf target u)
-                                                                                      nil)
-                                                                                  (get-neuron-output (get-layer lddn u))
-                                                                                  (if (member u final-output-layers) t nil)))))
+                do (insert-tabular-db! F/a-exp-db
+                                       (list :output-layer u :time time-step
+                                             :value (partial-deriv-SSE (if (member u final-output-layers)
+                                                                           (getf target u)
+                                                                           nil)
+                                                                       (get-neuron-output (get-layer lddn u))
+                                                                       (if (member u final-output-layers) t nil)))))
 
           (dolist (m bp-order) ;for m decremented through the BP order
             (format t "~&Loop for backpropagation order: ~d~%" m)
@@ -1009,14 +1010,12 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                             (query-tabular-db-value sens-db (list :to u :from l) :value)
                                             (first (get-tdl-effective-content
                                                     (get-layer-weight (get-layer lddn l) m))))))
-                             (query-tabular-db-value sens-db (list :to m :from m) :value)
-                             )))
+                             (query-tabular-db-value sens-db (list :to m :from m) :value))))
                       (insert-tabular-db! sens-db (list :to u :from m :value sens-matrix-u-m)))
 
                     (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
                     (when (member m input-layers)
-                      (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u m)))
-                    )))
+                      (setf exist-sens-input-layer (alist-create-or-adjoin exist-sens-input-layer u m))))))
               (when (member m output-layers)
                 ;;the calculating of $S^{m,m}(t)=\dot{F}^m(n^m(t))$ was batch set after calc-lddn-output!
                 (setf output-layers-tmp (adjoin m output-layers-tmp))
@@ -1056,7 +1055,8 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                     (loop for u in output-layers
                                           when (null (matrix-zeros-p (query-tabular-db-value
                                                                       F/a-exp-db
-                                                                      (list :output-layer u :time time-step) :value)))
+                                                                      (list :output-layer u :time time-step)
+                                                                      :value)))
                                             collect (matrix-product
                                                      (ecase type
                                                        ((:iw :lw)
@@ -1078,6 +1078,7 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                                      (query-tabular-db-value F/a-exp-db
                                                                              (list :output-layer u :time time-step)
                                                                              :value))))))
+
                      ;;(F/x-deriv-db (make-tabular-db (list :layer :type :delay :value))
                      ;;(format t "F/x-query: ~d~&" F/x-query)
                      ;;(format t "a/x-deriv-db a/x=~&~d~%" a/x-deriv-db)
@@ -1085,10 +1086,9 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                      (format t "insert or update F/x-deriv-db, index=~d~%" index-plist)
                      (alexandria:if-let ((pre-accu (query-tabular-db-value F/x-deriv-db F/x-query :value)))
                        (update-tabular-db! F/x-deriv-db F/x-query (list :value (matrix-add pre-accu this-res)))
-                       (insert-tabular-db! F/x-deriv-db (append F/x-query (list :value this-res))))))
-          )
-        ) ;end for dolist (sample samples)
-      ;;(format t "~&<a/x-deriv-db>:~d~%" a/x-deriv-db)
+                       (insert-tabular-db! F/x-deriv-db (append F/x-query (list :value this-res)))))) ;loop parameter-indices
+          ) ;let*
+        ) ;dolist samples
       F/x-deriv-db ;return tabular-db of ∂F/∂x
       )))
 
