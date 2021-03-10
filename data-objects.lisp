@@ -126,7 +126,7 @@
 (defclass tdl ()
   ((content :initarg :content
             :accessor content
-            :type fixed-len-unsafe-fifo
+            :type unsafe-fifo
             :documentation "a fixed length fifo, when a new element comes, the oldest element should go out")
    (from :initarg :from
          :accessor from
@@ -143,8 +143,11 @@ At the output of the tapped delay line we have an R-dimensional vector,
 consisting of the input signal at the current time and at delays of from 1 to R-1 time steps, the 0th step meams no delay"))
 
 (defun make-tdl (len &key (init-element 0) (from 0) (tdl-type :forward))
-  "make an `len dimensional tapped delay line, with the initial element with the default value"
-  (make-instance 'tdl :content (make-fixed-len-unsafe-fifo len :content init-element)
+  "make an `len dimensional tapped delay line, with the initial element with the default value.
+If len=-1, which means unlimited length, use an unsafe-fifo as it's content"
+  (make-instance 'tdl :content (if (= len -1)
+                                   (make-unsafe-fifo)
+                                   (make-fixed-len-unsafe-fifo len :content init-element))
                       :from from
                       :tdl-type tdl-type))
 
@@ -299,7 +302,7 @@ the `query-plist' should be necessary to fetch only ONE record, and this functio
     (if (check-keys-valid? keys new-record)
         (progn (setf db (cons (append (list :rid rid) new-record) db))
                (incf rid))
-        (warn "there're invalid keys in the record and insert failed: ~d" new-record))
+        (warn "there're invalid keys in the record and insert failed: ~d~&valid keys: ~d~&tdb: ~&~d~%" new-record keys tdb))
     (append (list :rid (1- rid)) new-record)))
 
 (defun update-by-plist (raw-plist update-plist)
