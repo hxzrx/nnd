@@ -15,6 +15,10 @@
 (defun make-unsafe-fifo ()
   (make-instance 'unsafe-fifo))
 
+(defmethod print-object ((fifo unsafe-fifo) stream)
+  (print-unreadable-object (fifo stream :type t)
+    (format stream "content: ~{~d~^ ~}" (get-contents fifo))))
+
 (defun copy-unsafe-fifo (f)
   (let ((fcopy (copy-list (unsafe-fifo-hd f))))
     (make-instance 'unsafe-fifo
@@ -109,6 +113,10 @@
     (dotimes (i (len fifo))
       (addq fifo init-content))))
       ;;(setf tl (setf (cdr tl) (list nil))))))
+
+(defmethod print-object ((fifo fixed-len-unsafe-fifo) stream)
+  (print-unreadable-object (fifo stream :type t)
+    (format stream "length: ~d~&content: ~{~d~^ ~}" (len fifo) (get-contents fifo))))
 
 (defmethod addq ((q fixed-len-unsafe-fifo) item &key &allow-other-keys)
   (when (>= (countq q) (len q)) (popq q))
