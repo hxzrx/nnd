@@ -633,6 +633,7 @@ delay-base, see the delay base definition in query-tdl-delay-base(network input 
 
 (defmethod query-delay-link ((lddn lddn) to-layer-id from-layer-id)
   "get $DL_{to,from}$"
+  (format t "<query-delay-link> DL(~d,~d)~%" to-layer-id from-layer-id)
   (with-slots ((lw-alist layer-weights)) (get-layer lddn to-layer-id)
     (query-tdl-delays (second (assoc from-layer-id lw-alist)))))
 
@@ -746,13 +747,17 @@ and the result returned is a list of such plists."
           collect (list (list (get-layer-id layer) (get-layer-id layer))
                         (list (get-deriv-F-n layer))))))
 
-(defmethod calc-init-sens-insert-db! ((lddn lddn))
+(defmethod calc-init-sens-insert-db! ((lddn lddn) &optional time-step)
   "calc sensitive matrix $S^{u,u}$ for all layer and insert into the db of the slot"
   (with-slots ((layers layers)
                (sens-tdb sens-matrix-db)) lddn
     (loop for layer in layers
-          do (insert-tabular-db! sens-tdb (list :to (get-layer-id layer) :from (get-layer-id layer)
-                                                :value (get-deriv-F-n layer))))))
+          do (insert-tabular-db! sens-tdb
+                                 (if time-step
+                                     (list :to (get-layer-id layer) :from (get-layer-id layer) :time time-step
+                                                :value (get-deriv-F-n layer))
+                                     (list :to (get-layer-id layer) :from (get-layer-id layer)
+                                                :value (get-deriv-F-n layer)))))))
 
 (defmethod calc-default-sens ((lddn lddn) to from)
   "$S^{to,from}$, default is a zero matrix with size $S^{to} * S^{from}$"
@@ -877,48 +882,64 @@ and the result returned is a list of such plists."
           )))
 
 (defmethod calc-deriv-F/n! ((lddn lddn) layer-m time-step)
-  "Equation (14.52), $d^m(t)$"
-  (with-slots ((layer-id-list simul-order)
-               (F/n-db F/n-deriv-db) ;d^m(t), (:layer :time :value)
+  "Equation (14.52), calc F/n for `layer-m' at `time-step', $d^m(t)$"
+  (format t "<calc-deriv-F/n!> layer m=~d, time=~d~%" layer-m time-step)
+  (with-slots ((F/n-db F/n-deriv-db) ;d^m(t), (:layer :time :value)
                (sens-db sens-matrix-db)
                (F/a-db F/a-deriv-db)) lddn
-    (dolist (m layer-id-list)
-      (let ((d^m
-              (loop for u in (query-E-S-U lddn m)
-                    collect (matrix-product
-                             (transpose (query-tabular-db-value sens-db (list :to u :from m :time time-step) :value))
-                             (query-tabular-db-value F/a-db (list :output-layer u :time time-step) :value)))))
-        (insert-tabular-db! F/n-db (list :layer m :time time-step :value d^m))))))
+    (let ((F/n-query (list :layer layer-m :time time-step))
+          (sigma (reduce #'matrix-add
+                         (loop for u in (query-E-S-U lddn layer-m)
+                               collect
+                               (let* ((sens-query (list :to u :from layer-m :time time-step))
+                                      (F/a-query (list :output-layer u :time time-step)))
+                                 (matrix-product
+                                  (transpose (query-tabular-db-value sens-db sens-query :value))
+                                  (query-tabular-db-value F/a-db F/a-query :value)))))))
+      (alexandria:if-let (query-result (query-tabular-db-value F/n-db F/n-query :value))
+        (update-tabular-db! F/n-db F/n-query (list :value (matrix-add query-result sigma)))
+        (insert-tabular-db! F/n-db (append F/n-query (list :value sigma)))))))
 
 
 (defmethod calc-deriv-F/a! ((lddn lddn) layer-u time-step samples-num)
   "Equation (14.63), calc ∂F/aᵘ(t), used in bptt"
+  (format t "~&<calc-deriv-F/a!>, u=~d, time=~d, Q=~d~%" layer-u time-step samples-num)
   (with-slots ((parameter-indices parameter-indices)
                (F/a-exp-db F/a-deriv-exp-db) ;(:output-layer :time :value)
                (F/a-db F/a-deriv-db) ;(:output-layer :time :value)
                (sens-db sens-matrix-db) ; sens-db should extend a time key to query in bptt, but this is not needed in rtrl
                ) lddn
-    (let ((F/a-exp-deriv (query-tabular-db-value F/a-exp-db (list :output-layer layer-u :time time-step) :value))
-          (sigmas
-            (reduce #'matrix-add
-                    (loop for x in (query-E-LW-X lddn layer-u)
-                          collect
-                          (loop for d in (query-delay-link lddn x layer-u)
-                                do (matrix-product
-                                    (transpose (query-lw-nth-delay (get-layer lddn x) layer-u d))
-                                    (reduce #'matrix-add
-                                            (loop for u-temp in (query-E-S-U lddn x)
-                                                  when (<= (+ time-step d) samples-num)
-                                                    collect
-                                                    (matrix-product
-                                                     (transpose (query-tabular-db-value sens-db
-                                                                                        (list :to u-temp :from x :time time-step)
-                                                                                        :value))
-                                                     (query-tabular-db-value F/a-db
-                                                                             (list :output-layer u-temp :time (+ time-step d))
-                                                                             :value))))))))))
+    (format t "E-S-U:~&~d~%" (E-S-U-alist lddn))
+    ;;(format t "sens db:~&~d~%" sens-db)
+    (let* ((F/a-exp-deriv (query-tabular-db-value F/a-exp-db (list :output-layer layer-u :time time-step) :value))
+           ;;(var-tmp0 (format t "F/a-exp-deriv: ~d~%" F/a-exp-deriv))
+           ;;(var-tmp1 (format t "x in E-LW-X(~d): ~d~%" layer-u (query-E-LW-X lddn layer-u)))
+           (sigmas
+            (loop for x in (query-E-LW-X lddn layer-u)
+                  ;;when (query-delay-link lddn x layer-u) ;not needed as delay at least 0
+                  collect
+                  (loop for d in (query-delay-link lddn x layer-u)
+                        when (<= (+ time-step d) samples-num)
+                        do (matrix-product
+                            (transpose (query-lw-nth-delay (get-layer lddn x) layer-u d))
+                            (reduce #'matrix-add
+                                    (loop for u-temp in (query-E-S-U lddn x)
+                                          collect
+                                          (matrix-product
+                                           (transpose (query-tabular-db-value sens-db
+                                                                              (list :to u-temp :from x :time time-step)
+                                                                              :value))
+                                           (query-tabular-db-value F/a-db
+                                                                   (list :output-layer u-temp :time (+ time-step d))
+                                                                   :value)))))))))
+      (format t "sigmas:~&~d~%" sigmas)
       (insert-tabular-db! F/a-db (list :output-layer layer-u :time time-step
-                                       :value (matrix-add F/a-exp-deriv sigmas))))))
+                                       :value
+                                       (if (remove nil sigmas)
+                                           (matrix-add F/a-exp-deriv (reduce #'matrix-add sigmas))
+                                           F/a-exp-deriv)))
+      )))
+
 
 (defmethod calc-deriv-a/x! ((lddn lddn) layer-u time-step)
   "Equation (14.34), calc ∂aᵘ(t)/∂xᵀ, used in rtrl, a/x-deriv-db (list :layer :time :type :to :from :delay :value)
@@ -1020,20 +1041,21 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                (E-S-U E-S-U-alist)
                (sens-db sens-matrix-db)
                (F/a-exp-db F/a-deriv-exp-db)
+               (F/a-db F/a-deriv-db)
                (F/x-deriv-db F/x-deriv-db) ;the gradient to be returned
                (F/n-db F/n-deriv-db)
                (parameter-indices parameter-indices)
                )lddn
     (let* ((samples-num (length samples))
-           (time-step samples-num))
+           (time-step (1+ samples-num)))
       (dolist (sample (reverse samples))
         (decf time-step)
 
         ;;trancate some db here
-        ;;....
+        ;;(truncate-tabular-db! F/n-db)
 
         (calc-lddn-output! lddn sample)
-        (calc-init-sens-insert-db! lddn)
+        (calc-init-sens-insert-db! lddn time-step)
 
         (let* ((target (second sample))
                (output-layers-tmp nil)  ; $U'$
@@ -1063,11 +1085,11 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                      (loop for l in intersect
                                            collect
                                            (matrix-product
-                                            (query-tabular-db-value sens-db (list :to u :from l) :value)
+                                            (query-tabular-db-value sens-db (list :to u :from l :time time-step) :value)
                                             (first (get-tdl-effective-content
                                                     (get-layer-weight (get-layer lddn l) m))))))
-                             (query-tabular-db-value sens-db (list :to m :from m) :value))))
-                      (insert-tabular-db! sens-db (list :to u :from m :value sens-matrix-u-m)))
+                             (query-tabular-db-value sens-db (list :to m :from m :time time-step) :value))))
+                      (insert-tabular-db! sens-db (list :to u :from m :time time-step :value sens-matrix-u-m)))
                     (setf exist-sens-layer (alist-create-or-adjoin exist-sens-layer u m))
                     (setf exist-sens-output-layer (alist-create-or-adjoin exist-sens-output-layer m u))))) ;difference from rtrl
 
@@ -1085,12 +1107,14 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
             (when (member u output-layers)
               ;;calc calc ∂Fᵘ/∂aᵘ(t)
               (calc-deriv-F/a! lddn u time-step samples-num)))
+          (format t "deriv-F/a finished! result~d~%~%" F/a-db)
 
           (dolist (m simul-order)
+            ;(format t "~&Loop for layer ~d, calc ∂F/∂n: d^~d~%" m m)
             (calc-deriv-F/n! lddn m time-step))
           ) ;let*
         );(dolist (sample (reverse samples))
-
+      (format t "F/n-db, d=:~&~d~%~%" F/n-db)
       ;; calc ∂F/∂x
       (loop for time-step from 1 to samples-num
             do (loop for index-plist in parameter-indices ;parameter-indices of x, independent to u
@@ -1104,7 +1128,9 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                (dm (query-tabular-db-value F/n-db
                                                            (list :layer layer :time time-step)
                                                            :value)) ;(:layer :time :value)
+                               (tmp-1 (format t "dm here~%"))
                                (input-l (get-nth-content (second (assoc from network-input-cache)) delay))
+                               (tmp-2 (format t "input-l here%"))
                                (output-l (get-nth-content (second (assoc from network-output-cache))
                                                          (- delay (query-tdl-delay-base
                                                                    (get-layer-weight (get-layer lddn layer) from)))))
@@ -1121,7 +1147,7 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                           )))
       )
     F/x-deriv-db
-    )) ; the out most let*
+    ))
 
 
 (defmethod calc-rtrl-gradient ((lddn lddn) (samples list))
@@ -1266,29 +1292,6 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
         ) ;dolist samples
       F/x-deriv-db ;return tabular-db of ∂F/∂x
       )))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1455,3 +1458,19 @@ for simplicity, we assume that where's only one target.
     ;;(format t "~&Parameter indices:~&~{~d~^~%~}~%" (enum-lddn-parameter-indices lddn))
     ;(format t "~&All samples: ~d~%" samples)
     (calc-rtrl-gradient lddn samples)))
+
+(defun test-calc-bptt-gradient-p14.1 ()
+  "each sample is a list of input and outputs, and it has this format:
+(list (list  input-id1 input-vector1 input-id2 input-vector2 ...)
+      (list output-id1 target-vector1 output-id2 target-vector2 ...))
+all samples are a list of samples,
+for the case of multiple targets (more than one output to compare with the targets), `target will be a list,
+for simplicity, we assume that where's only one target.
+"
+  (let* ((lddn (make-lddn :config lddn-config-p14.1))
+         (samples (list '((1 ((1) (1) (1))) (10 1))
+                        '((1 ((1) (1) (1))) (10 1))
+                        '((1 ((1) (1) (1))) (10 1)) )))
+    ;;(format t "~&Parameter indices:~&~{~d~^~%~}~%" (enum-lddn-parameter-indices lddn))
+    ;(format t "~&All samples: ~d~%" samples)
+    (calc-bptt-gradient lddn samples)))
