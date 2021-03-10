@@ -1,5 +1,5 @@
 
-;;;; Chapter 15, Dynamic Networks
+;;;; Chapter 14, Dynamic Networks
 
 (in-package :nnd)
 
