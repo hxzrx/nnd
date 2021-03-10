@@ -492,14 +492,18 @@ initizlize the layers' slots link-forward, link-backward, layer-weights, network
     ;; NEXT, define fixed-fifo to cache network inputs and layer inputs
     (setf network-input-cache
           (loop for (id delay) in max-network-input-delay
-                collect (list id (make-fixed-len-unsafe-fifo
-                                  delay
-                                  :content (make-zeros (get-input-dimension lddn id) 1)))))
+                collect (list id (ecase (getf config :lddn-type)
+                                   (:rtrl  (make-fixed-len-unsafe-fifo
+                                            delay
+                                            :content (make-zeros (get-input-dimension lddn id) 1)))
+                                   (:bptt (make-unsafe-fifo))))))
     (setf network-output-cache
           (loop for (id delay) in max-layer-input-delay
-                collect (list id (make-fixed-len-unsafe-fifo
-                                  delay
-                                  :content (make-zeros (get-neurons (get-layer lddn id)) 1)))))
+                collect (list id (ecase (getf config :lddn-type)
+                                   (:rtrl (make-fixed-len-unsafe-fifo
+                                           delay
+                                           :content (make-zeros (get-neurons (get-layer lddn id)) 1)))
+                                   (:bptt (make-unsafe-fifo))))))
     ;; parameter-indices
     (setf parameter-indices (enum-lddn-parameter-indices lddn))
     ))
@@ -633,7 +637,6 @@ delay-base, see the delay base definition in query-tdl-delay-base(network input 
 
 (defmethod query-delay-link ((lddn lddn) to-layer-id from-layer-id)
   "get $DL_{to,from}$"
-  (format t "<query-delay-link> DL(~d,~d)~%" to-layer-id from-layer-id)
   (with-slots ((lw-alist layer-weights)) (get-layer lddn to-layer-id)
     (query-tdl-delays (second (assoc from-layer-id lw-alist)))))
 
@@ -696,13 +699,15 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
   "add the network's raw inputs to the network-input-cache slot of lddn"
   (with-slots ((fifo-alist network-input-cache)) lddn
     (loop for (id . input-vector) in (alexandria:plist-alist (first raw-input-plist))
-          do (add-fixed-fifo (second (assoc id fifo-alist)) input-vector))))
+          do #+:ignore(add-fixed-fifo (second (assoc id fifo-alist)) input-vector)
+          (addq (second (assoc id fifo-alist)) input-vector))))
 
 (defmethod add-network-output-to-cache! ((lddn lddn) output-layer-id output-vector)
   "add the neuron output of some layer to the slot of network-output-cache of lddn"
   (with-slots ((fifo-alist network-output-cache)) lddn
     (alexandria:when-let (id-fifo (assoc output-layer-id fifo-alist))
-    (add-fixed-fifo (second id-fifo) output-vector))))
+      #+:ignore(add-fixed-fifo (second id-fifo) output-vector)
+      (addq (second id-fifo) output-vector))))
 
 (defmethod enum-lddn-parameter-indices ((lddn lddn))
   "enumerate all the indices of the network parameters so that there's a one to on correspondence between the indices and network parameters. each index is a plist such as: '(:layer 1 :type :iw :from 1 :delay 0).
@@ -883,7 +888,6 @@ and the result returned is a list of such plists."
 
 (defmethod calc-deriv-F/n! ((lddn lddn) layer-m time-step)
   "Equation (14.52), calc F/n for `layer-m' at `time-step', $d^m(t)$"
-  (format t "<calc-deriv-F/n!> layer m=~d, time=~d~%" layer-m time-step)
   (with-slots ((F/n-db F/n-deriv-db) ;d^m(t), (:layer :time :value)
                (sens-db sens-matrix-db)
                (F/a-db F/a-deriv-db)) lddn
@@ -903,20 +907,14 @@ and the result returned is a list of such plists."
 
 (defmethod calc-deriv-F/a! ((lddn lddn) layer-u time-step samples-num)
   "Equation (14.63), calc ∂F/aᵘ(t), used in bptt"
-  (format t "~&<calc-deriv-F/a!>, u=~d, time=~d, Q=~d~%" layer-u time-step samples-num)
   (with-slots ((parameter-indices parameter-indices)
                (F/a-exp-db F/a-deriv-exp-db) ;(:output-layer :time :value)
                (F/a-db F/a-deriv-db) ;(:output-layer :time :value)
                (sens-db sens-matrix-db) ; sens-db should extend a time key to query in bptt, but this is not needed in rtrl
                ) lddn
-    (format t "E-S-U:~&~d~%" (E-S-U-alist lddn))
-    ;;(format t "sens db:~&~d~%" sens-db)
     (let* ((F/a-exp-deriv (query-tabular-db-value F/a-exp-db (list :output-layer layer-u :time time-step) :value))
-           ;;(var-tmp0 (format t "F/a-exp-deriv: ~d~%" F/a-exp-deriv))
-           ;;(var-tmp1 (format t "x in E-LW-X(~d): ~d~%" layer-u (query-E-LW-X lddn layer-u)))
            (sigmas
             (loop for x in (query-E-LW-X lddn layer-u)
-                  ;;when (query-delay-link lddn x layer-u) ;not needed as delay at least 0
                   collect
                   (loop for d in (query-delay-link lddn x layer-u)
                         when (<= (+ time-step d) samples-num)
@@ -932,7 +930,6 @@ and the result returned is a list of such plists."
                                            (query-tabular-db-value F/a-db
                                                                    (list :output-layer u-temp :time (+ time-step d))
                                                                    :value)))))))))
-      (format t "sigmas:~&~d~%" sigmas)
       (insert-tabular-db! F/a-db (list :output-layer layer-u :time time-step
                                        :value
                                        (if (remove nil sigmas)
@@ -956,7 +953,6 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                  (delay (getf index-plist :delay))) ;it's not the same delay in the loop
              (ecase x-type
                (:iw
-                (format t "calc iw for u=~d, m=~d~%" layer-u m)
                 (insert-tabular-db!
                  a/x-deriv-db
                  (list :layer layer-u :time time-step :type :iw :to m :from l :delay delay
@@ -989,7 +985,6 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                              explicit-deriv)))))
 
                (:lw
-                (format t "calc lw for u=~d, m=~d~%" layer-u m)
                 (insert-tabular-db!
                  a/x-deriv-db
                  (list :layer layer-u :time time-step :type :lw :to m :from l :delay delay
@@ -1020,7 +1015,6 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                              (matrix-add explicit-deriv (reduce #'matrix-add sigmas))
                              explicit-deriv)))))
                (:b
-                (format t "calc bias for u=~d, m=~d~%" layer-u m)
                 (insert-tabular-db!
                  a/x-deriv-db
                  (list :layer layer-u :time time-step :type :b :to m
@@ -1107,14 +1101,13 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
             (when (member u output-layers)
               ;;calc calc ∂Fᵘ/∂aᵘ(t)
               (calc-deriv-F/a! lddn u time-step samples-num)))
-          (format t "deriv-F/a finished! result~d~%~%" F/a-db)
 
           (dolist (m simul-order)
             ;(format t "~&Loop for layer ~d, calc ∂F/∂n: d^~d~%" m m)
             (calc-deriv-F/n! lddn m time-step))
           ) ;let*
         );(dolist (sample (reverse samples))
-      (format t "F/n-db, d=:~&~d~%~%" F/n-db)
+
       ;; calc ∂F/∂x
       (loop for time-step from 1 to samples-num
             do (loop for index-plist in parameter-indices ;parameter-indices of x, independent to u
@@ -1128,22 +1121,25 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                (dm (query-tabular-db-value F/n-db
                                                            (list :layer layer :time time-step)
                                                            :value)) ;(:layer :time :value)
-                               (tmp-1 (format t "dm here~%"))
-                               (input-l (get-nth-content (second (assoc from network-input-cache)) delay))
-                               (tmp-2 (format t "input-l here%"))
-                               (output-l (get-nth-content (second (assoc from network-output-cache))
-                                                         (- delay (query-tdl-delay-base
-                                                                   (get-layer-weight (get-layer lddn layer) from)))))
+                               (delayed-vec (ecase type
+                                              (:lw (get-nth-content (second (assoc from network-output-cache))
+                                                                    (- delay (query-tdl-delay-base
+                                                                              (get-layer-weight (get-layer lddn layer) from)))))
+                                              (:iw (get-nth-content (second (assoc from network-input-cache)) delay))
+                                              (:b nil)))
                                (this-res (ecase type
-                                           (:lw (matrix-product dm (transpose output-l)))
-                                           (:iw (matrix-product dm (transpose input-l)))
+                                           (:lw (matrix-product dm (transpose delayed-vec)))
+                                           (:iw (matrix-product dm (transpose delayed-vec)))
                                            (:b  dm)))
                                )
-                          (format t "insert or update F/x-deriv-db, index=~d~%" index-plist)
-                          (when (> (- time-step delay) 0)
-                            (alexandria:if-let ((pre-accu (query-tabular-db-value F/x-deriv-db F/x-query :value)))
-                              (update-tabular-db! F/x-deriv-db F/x-query (list :value (matrix-add pre-accu this-res)))
-                              (insert-tabular-db! F/x-deriv-db (append F/x-query (list :value this-res)))))
+                          (if (eq type :b)
+                              (alexandria:if-let ((pre-accu (query-tabular-db-value F/x-deriv-db F/x-query :value)))
+                                (update-tabular-db! F/x-deriv-db F/x-query (list :value (matrix-add pre-accu this-res)))
+                                (insert-tabular-db! F/x-deriv-db (append F/x-query (list :value this-res))))
+                              (when (> (- time-step delay) 0)
+                                (alexandria:if-let ((pre-accu (query-tabular-db-value F/x-deriv-db F/x-query :value)))
+                                  (update-tabular-db! F/x-deriv-db F/x-query (list :value (matrix-add pre-accu this-res)))
+                                  (insert-tabular-db! F/x-deriv-db (append F/x-query (list :value this-res))))))
                           )))
       )
     F/x-deriv-db
@@ -1418,7 +1414,7 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
 
 
 (defparameter lddn-layer-config-p14.1
-  (first (getf lddn-config-p14.1 :layer)))
+  (first (getf lddn-rtrl-config-p14.1 :layer)))
 
 (defun FIR-demo ()
   "Finite Impulse Response Network Demonstration. Page 272, Chinese edition."
@@ -1482,7 +1478,7 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
 
 (defun test-output-p14.2 ()
   "page 291"
-  (let* ((lddn (make-lddn :config lddn-config-p14.1))
+  (let* ((lddn (make-lddn :config lddn-rtrl-config-p14.1))
          (p '((1 ((1) (1) (1)) 1)))
          (output (calc-lddn-output! lddn p)))
     (format t "~&lddn's inputs: ~d~%" (inputs lddn))
