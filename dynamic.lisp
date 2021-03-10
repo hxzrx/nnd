@@ -1297,8 +1297,59 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; demos, examples, and exercises
 
-(defparameter lddn-config-p14.1
-  (list :input (list (list :id 1 :dimension 3 :to-layer '(1))) ;the first input vector, 3*1 rank, input to layer 1
+(defparameter lddn-rtrl-config-p14.1
+  (list :lddn-type :rtrl ;rtrl only keeps fixed length of inputs and outputs but bptt keeps all, other parts of config are the same
+        :input (list (list :id 1 :dimension 3 :to-layer '(1) :delay -1)) ;the first input vector, 3*1 rank, input to layer 1
+        :output (list 10) ;network output layer id
+        :order '(1 2 3 7 4 5 6 8 9 10)
+        ;;transfer may refer the type or provide a function, if a function f was provided , the drivative should provide too
+        :layer (list (list :id 1 :neurons 2 :transfer :logsig
+                           ;;receive the first input with delay from 0, and the tdl has length 1
+                           ;;:w is a list of weights and should correspond to each delay, if :w is not provided, the weights will be generated randomly
+                           :network-input (list (list :id 1 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
+                           :layer-input nil
+                           :bias '((0) (0))
+                           :link-to '(2))
+                     (list :id 2 :neurons 3 :transfer :logsig
+                           :layer-input (list (list :id 1 :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2))))
+                                              (list :id 2 :delay (list :from 1 :to 1 :dir :self)
+                                                    :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3) (1/3 1/3 1/3)))))
+                           :link-to '(2 3 6 7))
+                     (list :id 3 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
+                           :link-to '(4))
+                     (list :id 4 :neurons 1 :transfer :logsig
+                           :layer-input (list (list :id 3 :delay (list :from 1 :to 1 :dir :forward) :w (list '((1/2 1/2))))
+                                              (list :id 4 :delay (list :from 1 :to 1 :dir :self) :w (list '((1))))
+                                              (list :id 7 :w (list '((1/2 1/2)))))
+                           :link-to '(4 5 9))
+                     (list :id 5 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 4 :w (list '((1/2) (1/2)))))
+                           :link-to '(6))
+                     (list :id 6 :neurons 4 :transfer :logsig
+                           :layer-input (list (list :id 5 :delay (list :from 0 :to 1 :dir :forward)
+                                                    :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2) (1/2 1/2))
+                                                             '((1/2 1/2) (1/2 1/2) (1/2 1/2) (1/2 1/2))))
+                                              (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3) (1/3 1/3 1/3) (1/3 1/3 1/3)))))
+                           :link-to '(10))
+                     (list :id 7 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 2 :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3)))))
+                           :link-to '(4 8))
+                     (list :id 8 :neurons 3 :transfer :logsig
+                           :layer-input (list (list :id 7 :w (list '((1/2 1/2) (1/2 1/2) (1/2 1/2)))))
+                           :link-to '(9))
+                     (list :id 9 :neurons 2 :transfer :logsig
+                           :layer-input (list (list :id 8 :delay (list :from 1 :to 1 :dir :forward)
+                                                    :w (list '((1/3 1/3 1/3) (1/3 1/3 1/3))))
+                                              (list :id 4 :w (list '((1) (1)))))
+                           :link-to '(10))
+                     (list :id 10 :neurons 1 :transfer :purelin
+                           :layer-input (list (list :id 6 :w (list '((1/4 1/4 1/4 1/4))))
+                                              (list :id 9 :w (list '((1/2 1/2)))))))))
+
+(defparameter lddn-bptt-config-p14.1
+  (list :lddn-type :bptt ;rtrl only keeps fixed length of inputs and outputs but bptt keeps all, other parts of config are the same
+        :input (list (list :id 1 :dimension 3 :to-layer '(1))) ;the first input vector, 3*1 rank, input to layer 1
         :output (list 10) ;network output layer id
         :order '(1 2 3 7 4 5 6 8 9 10)
         ;;transfer may refer the type or provide a function, if a function f was provided , the drivative should provide too
@@ -1451,7 +1502,7 @@ all samples are a list of samples,
 for the case of multiple targets (more than one output to compare with the targets), `target will be a list,
 for simplicity, we assume that where's only one target.
 "
-  (let* ((lddn (make-lddn :config lddn-config-p14.1))
+  (let* ((lddn (make-lddn :config lddn-rtrl-config-p14.1))
          (samples (list '((1 ((1) (1) (1))) (10 1))
                         '((1 ((1) (1) (1))) (10 1))
                         '((1 ((1) (1) (1))) (10 1)) )))
@@ -1467,7 +1518,7 @@ all samples are a list of samples,
 for the case of multiple targets (more than one output to compare with the targets), `target will be a list,
 for simplicity, we assume that where's only one target.
 "
-  (let* ((lddn (make-lddn :config lddn-config-p14.1))
+  (let* ((lddn (make-lddn :config lddn-bptt-config-p14.1))
          (samples (list '((1 ((1) (1) (1))) (10 1))
                         '((1 ((1) (1) (1))) (10 1))
                         '((1 ((1) (1) (1))) (10 1)) )))
