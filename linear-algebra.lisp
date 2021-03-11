@@ -811,20 +811,32 @@
   "norm or a column vector, vec is allowable for column vectors and row vectors"
   (sqrt (inner-product vec vec)))
 
+(defgeneric vector-length (vector)
+  (:documentation "calc Euclid length of a vector, the input vector should be a column vector")
+  (:method ((vector list))
+    (sqrt (inner-product vector vector)))
+  (:method ((vector number))
+    (abs vector)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; normalize a vetor
-(defgeneric normalize-vector (vec)
-  (:documentation "normalize a vec so that it has length 1"))
 
-(defmethod normalize-vector ((vec list))
-  "normalize a vetor, both row vector and column vector are allowed"
-  (let ((norm^2 (inner-product vec vec))
-        (epsilon 0.00000001))
-    (if (< norm^2 epsilon)
-        (progn
-          (let ((size (matrix-size vec)))
-            (make-zeros (car size) (cdr size))))
-        (matrix-multiple-scalar vec (/ 1 (sqrt norm^2))))))
+(defgeneric normalize-vector (vec)
+  (:documentation "normalize a vec so that it has length 1")
+  (:method ((vec list))
+    "normalize a vetor, both row vector and column vector are allowed"
+    (let ((norm^2 (inner-product vec vec))
+          (epsilon 0.00000001))
+      (if (< norm^2 epsilon)
+          (progn
+            (let ((size (matrix-size vec)))
+              (make-zeros (car size) (cdr size))))
+          (matrix-multiple-scalar vec (/ 1 (sqrt norm^2)))))))
+
+(defgeneric normalize (vector &optional normalized-len)
+  (:documentation "normalize a vector so that it's length is `len'")
+  (:method ((vector list) &optional (normalized-len 1))
+    (matrix-product normalized-len (normalize-vector vector))))
 
 ;;;; orthogonalization
 (defgeneric orthogonalization (matrix)
