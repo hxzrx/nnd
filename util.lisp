@@ -547,11 +547,31 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
       accu
       (repeat-list lst (1- n) (append accu lst))))
 
-(defun neighbour-row (lst center radius)
+(defmethod neighbour-row ((lst list) center radius)
   "collect the indices of the elements which are the neighbours of center"
   (let ((len (length lst)))
     (loop for i from (max 0 (- center radius)) to (min (1- len) (+ center radius))
           collect i)))
 
 
-;(defun neighbour (lst rank center radius)
+(defun neighbour% (rank center radius)
+  "return a rhombus shape (square rotated pi/4) of id's of `matrix' for `center' with `radius'"
+  (let* ((rows (car rank))
+         (cols (cdr rank))
+         (center-row (first center))
+         (center-col (second center)))
+    (append
+     (apply #'append
+            (loop for x from (- center-row radius) to center-row
+                  for i from 0
+                  when (and (>= x 0) (< x rows))
+                    collect
+                    (loop for y from (- center-col i) to (+ center-col i)
+                          when (and (>= y 0) (< y cols))
+                            collect (list x y))))
+     (apply #'append (loop for x from (1+ center-row) to (+ center-row radius)
+                           for i from (1- radius) downto 0
+                           ;;when
+                           collect
+                           (loop for y from (- center-col i) to (+ center-col i)
+                                 collect (list x y)))))))
