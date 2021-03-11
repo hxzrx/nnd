@@ -540,23 +540,3 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
   (if return-first
       (find-most-id lst :test #'>=)
       (find-most-id lst :test #'>)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defgeneric vector-length (vector)
-  (:documentation "calc Euclid length of a vector, the input vector should be a column vector")
-  (:method ((vector list))
-    (sqrt (inner-product vector vector)))
-  (:method ((vector number))
-    (abs vector)))
-
-(defgeneric normalize (vector &optional normalized-len)
-  (:documentation "normalize a vector so that it's length is `len'")
-  (:method ((vector list) &optional (normalized-len 1))
-    (if (column-vector-p vector)
-        (let ((len (vector-length vector)))
-          (if (= len 0)
-              (progn (warn "normalize a zero vector")
-                     vector)
-              (matrix-product vector (* normalized-len (/ 1 len)))))
-        (transpose (normalize (transpose vector) normalized-len)))))
