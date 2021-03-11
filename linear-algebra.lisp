@@ -1043,3 +1043,17 @@ if min and max were nil, the elements will be real number in [0, 1]"))
 
 (defun matrix-to-vector (matrix)
   (vec-operator matrix))
+
+(defgeneric distance (vector1 vector2 &optional type)
+  (:documentation "distance of two vector, type :e means Euclidean distance, :m means Manhattan distance, :c means Chebyshev distance")
+  (:method ((vector1 list) (vector2 list) &optional (type :e))
+    (ecase type
+      (:e (sqrt (loop for x in vector1
+                      for y in vector2
+                      sum (* (- (car x) (car y)) (- (car x) (car y))))))
+      (:m (loop for x in vector1
+                for y in vector2
+                sum (abs (- (car x) (car y)))))
+      (:c (apply #'max (loop for x in vector1
+                             for y in vector2
+                             collect (abs (- (car x) (car y)))))))))
