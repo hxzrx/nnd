@@ -4,25 +4,32 @@
 
 
 (defmethod competitive-learning ((network static-network) samples &optional (learning-rate 0.25))
-  "w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron. the weights of the compet layer should be normalized first.
-samples is a list of sample of input vectors"
-  (with-slots ((weights weights)) network
-    (dolist (sample samples)
-      (let* ((input (first sample))
-             (compet-layer-weight (first weights))
-             (compet-result (static-network-output network input)))
-        (setf compet-layer-weight
-              (loop for cpt-res in (car (transpose compet-result))
-                    for neuro-weight in compet-layer-weight
-                    collect (if (= cpt-res 0)
-                                neuro-weight
-                                (let ((weight-row (list neuro-weight))
-                                      (input-row (transpose input)))
-                                  (first (matrix-add (matrix-product (- 1 learning-rate) weight-row)
-                                                     (matrix-product learning-rate input-row)))))))
-        (format t "~%input: ~d~&weights updated:~&~{~d~^~&~}" (transpose input) compet-layer-weight)
-        )))
+  "Kohonen rule: w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron.
+the weights of the compet layer should be normalized first. samples is a list of sample of input vectors"
+  (let ((compet-layer-id 0))
+    (with-slots ((weights weights)) network
+      (dolist (sample samples)
+        (let* ((input (first sample))
+               (compet-layer-weight (first weights))
+               (compet-result (static-network-output network input))
+               (updated-weights (loop for cpt-res in (car (transpose compet-result))
+                                      for neuro-weight in compet-layer-weight
+                                      collect (if (< (abs (- cpt-res 1)) 0.00000001)
+                                                  (let ((weight-row (list neuro-weight))
+                                                        (input-row (transpose input)))
+                                                    (first (matrix-add (matrix-product (- 1 learning-rate) weight-row)
+                                                                       (matrix-product learning-rate input-row))))
+                                                  neuro-weight))))
+          ;;CANNOT setf compet-layer-weight, that will leading to unpredictable results
+          (setf (nth compet-layer-id weights) updated-weights)
+          ))))
   network)
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; examples and exercises
 
 (defun example-compet-learn-page-305 ()
   (let ((network (make-static-network :neurons (list 2 3)
@@ -35,6 +42,28 @@ samples is a list of sample of input vectors"
                        (list '((0.9806)  (-0.1961)))
                        (list '((-0.5812) (-0.8137)))
                        (list '((-0.8137) (-0.5812))))))
+    (format t "Initial network:~&~d~%~%" network)
+    (with-slots ((weights weights)) network ;normalize the compet layer's weight
+      (let* ((compet-layer-weight (first weights)))
+        (setf compet-layer-weight
+              (loop for rows in compet-layer-weight
+                    collect (first (normalize (list rows)))))))
+    (competitive-learning network samples 0.5)))
+
+(defun example-p15.2-page-316 ()
+  (let ((network (make-static-network :neurons (list 2 3)
+                                      :weights (list (list (list 0 -1)
+                                                           (list (/ -2 (sqrt 5)) (/ 1 (sqrt 5)))
+                                                           (list (/ -1 (sqrt 5)) (/ 2 (sqrt 5)))))
+                                      :summers (list :sum)
+                                      :transfers (list #'compet)))
+        (samples (list (list '((-1) (0)))
+                       (list '((0) (1)))
+                       (list (list (list (/ 1 (sqrt 2))) (list (/ 1 (sqrt 2)))))
+                       (list '((-1) (0)))
+                       (list '((0) (1)))
+                       (list (list (list (/ 1 (sqrt 2))) (list (/ 1 (sqrt 2)))))
+                       )))
     (format t "Initial network:~&~d~%~%" network)
     (with-slots ((weights weights)) network ;normalize the compet layer's weight
       (let* ((compet-layer-weight (first weights)))
