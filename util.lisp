@@ -540,3 +540,9 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
   (if return-first
       (find-most-id lst :test #'>=)
       (find-most-id lst :test #'>)))
+
+(defun repeat-list (lst n &optional (accu nil))
+  "repeated and append lst for n times. eg. (repeat-list '(1 2 3) 3) -> (1 2 3 1 2 3 1 2 3)"
+  (if (= n 0)
+      accu
+      (repeat-list lst (1- n) (append accu lst))))
