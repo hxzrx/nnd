@@ -546,3 +546,12 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
   (if (= n 0)
       accu
       (repeat-list lst (1- n) (append accu lst))))
+
+(defun neighbour-row (lst center radius)
+  "collect the indices of the elements which are the neighbours of center"
+  (let ((len (length lst)))
+    (loop for i from (max 0 (- center radius)) to (min (1- len) (+ center radius))
+          collect i)))
+
+
+;(defun neighbour (lst rank center radius)
