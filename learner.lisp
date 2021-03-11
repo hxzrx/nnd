@@ -70,6 +70,7 @@
        (cdr biases)
        (cdr transfers))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defclass static-network ()
   ((neurons :initarg :neurons
@@ -140,3 +141,23 @@
 (defmethod print-object ((network static-network) stream)
   (print-unreadable-object (network stream :type t)
     (format stream (format-string network))))
+
+
+(defun cascaded-forward-output (weights biases summers transfers input)
+  (if weights
+      input
+      (cascaded-forward (cdr weights)
+                        (cdr biases)
+                        (cdr summers)
+                        (cdr transfers)
+                        (funcall (car transfers) (ecase (car summers)
+                                                   (:sum (matrix-add (matrix-product (car weights) input) (car biases)))
+                                                   (:dist (dist (car weights) input)))))))
+
+(defmethod static-network-output ((network static-network) input-vector)
+  "calc the output of a static network"
+  (with-slots ((weights weights)
+               (biases biases)
+               (summers summers)
+               (transfers transfers)) network
+    (cascaded-forward-output weights biases summers transfers input-vector)))
