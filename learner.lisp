@@ -112,12 +112,8 @@
                (transfers transfers)) network
     (when neurons ;initialize neurons from weights
       (setf neurons (neurons-from-weights weights)))
-    (when (null biases)
-      (if weights ;if weights are specified, initialize biases with zero vectors, else initialize random vectors
-          (setf biases
-                (loop for rank in (subseq neurons 0 (- (length neurons) 1))
-                      collect (make-zero-vector rank)))
-          (setf biases (neurons-to-random-biases neurons -0.5 0.5))))
+    (when (and (null biases) weights)
+      (setf biases (neurons-to-random-biases neurons -0.5 0.5)))
     (when (null weights) ;initialize with random matrices
       (setf weights (neurons-to-random-weights neurons -0.5 0.5)))
     (when (null summers) ;default
@@ -145,14 +141,14 @@
 
 (defun cascaded-forward-output (weights biases summers transfers input)
   (if weights
-      input
       (cascaded-forward (cdr weights)
                         (cdr biases)
                         (cdr summers)
                         (cdr transfers)
                         (funcall (car transfers) (ecase (car summers)
                                                    (:sum (matrix-add (matrix-product (car weights) input) (car biases)))
-                                                   (:dist (dist (car weights) input)))))))
+                                                   (:dist (dist (car weights) input)))))
+      input))
 
 (defmethod static-network-output ((network static-network) input-vector)
   "calc the output of a static network"
