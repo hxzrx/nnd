@@ -69,3 +69,74 @@
        (cdr weights)
        (cdr biases)
        (cdr transfers))))
+
+
+(defclass static-network ()
+  ((neurons :initarg :neurons
+            :accessor neurons
+            :type list
+            :initform nil
+            :documentation "the list of neurons for the layers, R-S¹-S²-...-Sᴹ, where R is the input dimension, and Sⁱ is the neurons of each layer, this slot's value is (list R S¹ S² ... Sᴹ)")
+   (weights :initarg :weights
+            :accessor weights
+            :type list
+            :initform nil
+            :documentation "the list of weight matrices for the layers")
+   (biases :initarg :biases
+           :accessor biases
+           :type list
+           :initform nil
+           :documentation "the list of biases for the layers")
+   (summers :initarg :biases :accessor summer :type list :initform nil :documentation "the list of symbols described how the net inputs were producted, default :sum, and in competitive networks they may be :dist")
+   (transfers :initarg :transfers
+              :accessor transfers
+              :type list
+              :initform nil
+              :documentation "the list of transfer functions for the layers"))
+  (:documentation "A static network with a list of weights , a list of biases, etc."))
+
+(defun make-static-network (&key neurons weights biases summers transfers)
+  (make-instance 'static-network
+                 :neurons neurons
+                 :weights weights
+                 :biases biases
+                 :summers summers
+                 :transfers transfers))
+
+(defmethod initialize-instance :after ((network static-network) &key &allow-other-keys)
+  (with-slots ((neurons neurons)
+               (weights weights)
+               (biases biases)
+               (summers summers)
+               (transfers transfers)) network
+    (when neurons ;initialize neurons from weights
+      (setf neurons (neurons-from-weights weights)))
+    (when (null biases)
+      (if weights ;if weights are specified, initialize biases with zero vectors, else initialize random vectors
+          (setf biases
+                (loop for rank in (subseq neurons 0 (- (length neurons) 1))
+                      collect (make-zero-vector rank)))
+          (setf biases (neurons-to-random-biases neurons -0.5 0.5))))
+    (when (null weights) ;initialize with random matrices
+      (setf weights (neurons-to-random-weights neurons -0.5 0.5)))
+    (when (null summers) ;default
+      (setf summers (loop for n in (cdr neurons)
+                          collect :sum)))
+    (when (every #'symbolp transfers)
+      (setf transfers (loop for sbl in transfers
+                            collect (symbol-function sbl))))))
+
+(defmethod format-string ((network static-network))
+  (with-slots ((neurons neurons)
+               (weights weights)
+               (biases biases)
+               (transfers transfers)) network
+    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&transfers:~{~d~^ ~}~&"
+            neurons
+            weights
+            (loop for b in biases collect (transpose b))
+            transfers)))
+
+(defmethod print-object ((network static-network) stream)
+  (print-unreadable-object (network stream :type t)
+    (format stream (format-string network))))
