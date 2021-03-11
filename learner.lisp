@@ -112,8 +112,10 @@
                (transfers transfers)) network
     (when neurons ;initialize neurons from weights
       (setf neurons (neurons-from-weights weights)))
-    (when (and (null biases) weights)
-      (setf biases (neurons-to-random-biases neurons -0.5 0.5)))
+    (when (null biases)
+      (if weights
+          (setf biases (neurons-to-random-biases neurons 0 0))
+          (setf biases (neurons-to-random-biases neurons -0.5 0.5))))
     (when (null weights) ;initialize with random matrices
       (setf weights (neurons-to-random-weights neurons -0.5 0.5)))
     (when (null summers) ;default
@@ -140,6 +142,18 @@
   (print-unreadable-object (network stream :type t)
     (format stream (format-string network))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmethod get-neurons ((network static-network))
+  (neurons network))
+
+(defmethod get-weights ((network static-network))
+  (weights network))
+
+(defmethod get-bias ((network static-network))
+  (biases network))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun cascaded-forward-output (weights biases summers transfers input)
   (if weights
