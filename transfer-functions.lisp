@@ -115,10 +115,10 @@
   (:documentation "competitive")
   (:method ((n number)) 1)
   (:method ((vector list))
-    (let* ((size (matrix-size vector))
+    (let* ((size (length vector))
            (to-list (first (transpose vector)))
            (max-place (find-max-id to-list)))
-      (loop for i from 0 below (car size)
+      (loop for i from 0 below size
             collect (if (= max-place i)
                         (list 1)
                         (list 0))))))
@@ -161,3 +161,12 @@
         ((eq fun-type :square)  #'(lambda (x) (* 2 x)))
         ((eq fun-type :cube)    #'(lambda (x) (* 3 x x)))
         (t (format t "Not implimented yet!"))))
+
+
+(defgeneric dist (weights vector)
+  (:documentation "computing distance of the input vector and each row of weights to get a vector, note that it's not a transfer function but the summation point instead inner product")
+  (:method ((weights list) (vector list))
+    (loop for row in weights
+          collect (list (distance (transpose (list row)) vector))))
+  (:method ((weights number) (vector number))
+    (distance weights vector)))
