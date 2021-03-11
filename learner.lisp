@@ -127,11 +127,13 @@
   (with-slots ((neurons neurons)
                (weights weights)
                (biases biases)
+               (summers summers)
                (transfers transfers)) network
-    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&transfers:~{~d~^ ~}~&"
+    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&summers: ~{~d~^ ~}~&transfers:~{~d~^ ~}~&"
             neurons
             weights
             (loop for b in biases collect (transpose b))
+            summers
             transfers)))
 
 (defmethod print-object ((network static-network) stream)
@@ -141,13 +143,14 @@
 
 (defun cascaded-forward-output (weights biases summers transfers input)
   (if weights
-      (cascaded-forward (cdr weights)
-                        (cdr biases)
-                        (cdr summers)
-                        (cdr transfers)
-                        (funcall (car transfers) (ecase (car summers)
-                                                   (:sum (matrix-add (matrix-product (car weights) input) (car biases)))
-                                                   (:dist (dist (car weights) input)))))
+      (cascaded-forward-output (cdr weights)
+                               (cdr biases)
+                               (cdr summers)
+                               (cdr transfers)
+                               (funcall (car transfers) (ecase (car summers)
+                                                          (:sum (matrix-add (matrix-product (car weights) input)
+                                                                            (car biases)))
+                                                          (:dist (dist (car weights) input)))))
       input))
 
 (defmethod static-network-output ((network static-network) input-vector)
