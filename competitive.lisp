@@ -35,6 +35,23 @@ In SOFM, neuros can be arranged as an m * n matrix. `neuro-arranged' ia a list (
                                            (matrix-product learning-rate (transpose input))))
                         neuron-weight)))))
 
+(defgeneric kohonen-update-lvq (old-weight input compet-result correctly-classified? learning-rate)
+  (:documentation "Kohonen rule:
+If `input' was   correctly classified, w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron.
+If `input' was incorrectly classified, w(q) = w(q-1) - alpha * (p(q) - w(q-1)) for the winning neuron.")
+  (:method ((old-weight list) (input list) compet-result correctly-classified? learning-rate)
+    "`old-weight' is a weight matrix and `input' is a column vector"
+    (loop for cpt-res in (car (transpose compet-result))
+          for weight in old-weight
+          collect (if (< (abs (- cpt-res 1)) 0.00000001)
+                      (let ((weight-row (list weight)) ;winner
+                            (input-row (transpose input)))
+                        (if correctly-classified?
+                            (first (matrix-add (matrix-product (- 1 learning-rate) weight-row)
+                                               (matrix-product learning-rate input-row)))
+                            (first (matrix-sub (matrix-product (- 1 learning-rate) weight-row)
+                                               (matrix-product learning-rate input-row)))))
+                      weight))))
 
 (defun nth-win (compet-result &optional (n 0))
   "compet-result is a column vector with one element is one and else elements are zeros"
@@ -57,7 +74,7 @@ the weights of the compet layer should be normalized first. samples is a list of
         (incf time)
         (let* ((input (first sample))
                (compet-layer-weight (first weights))
-               (compet-result (static-network-output network input))
+               (compet-result (static-network-output! network input))
                (updated-weights (kohonen-update compet-layer-weight input compet-result learning-rate)))
           (format t "~&Q=~d, compet result: ~{~d~^ ~}~%Weight:~%~{~{~d~^ ~}~^~&~}~%" time compet-result compet-layer-weight)
           ;;CANNOT setf compet-layer-weight, that will leading to unpredictable results
@@ -102,7 +119,7 @@ the weights of the compet layer should be normalized first. samples is a list of
           (let* ((input (first sample))
                  (compet-layer-weight (first weights))
                  (compet-layer-bias   (first biases))
-                 (compet-result (static-network-output network input))
+                 (compet-result (static-network-output! network input))
                  (updated-weights (kohonen-update compet-layer-weight input compet-result learning-rate))
                  (updated-biases (conscious-update compet-layer-bias compet-result)))
             (format t "~&Q=~d, compet result: ~{~d~^ ~}~%Weight:~%~{~{~d~^ ~}~^~&~}~&Biases:~&~{~{~d~^ ~}~^~&~}~%" time compet-result compet-layer-weight compet-layer-bias)
@@ -118,7 +135,7 @@ the weights of the compet layer should be normalized first. samples is a list of
 ;;;;SOFM
 
 (defmethod sofm-learning ((network static-network) samples &optional neuron-arranged (learning-rate 0.5) (radius 1))
-  "self-organizing feature maps"
+  "basic Self-Organizing Feature Maps learning"
     (with-slots ((weights weights)
                  (neurons neurons)) network
       (let* ((compet-layer-id 0)
@@ -130,7 +147,7 @@ the weights of the compet layer should be normalized first. samples is a list of
           (incf time)
           (let* ((input (first sample))
                  (compet-layer-weight (first weights))
-                 (compet-result (static-network-output network input))
+                 (compet-result (static-network-output! network input))
                  (updated-weights (kohonen-update-neighbor compet-layer-weight input compet-result
                                                            :learning-rate learning-rate
                                                            :radius radius
@@ -144,7 +161,33 @@ the weights of the compet layer should be normalized first. samples is a list of
   network)
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; Learning Vector Quantization
 
+(defmethod lvq-learning ((network static-network) samples &optional (learning-rate 0.5))
+  "Learning Vector Quantization"
+    (with-slots ((weights weights)
+                 (neurons neurons)
+                 (neuron-outputs neuron-outputs)) network
+      (let* ((compet-layer-id 0)
+             (time 0))
+        (dolist (sample samples)
+          (incf time)
+          (let* ((input (first sample))
+                 (target (second sample))
+                 (compet-layer-weight (nth compet-layer-id weights))
+                 (classify-result (static-network-output! network input))
+                 (compet-result (nth compet-layer-id neuron-outputs))
+                 (correctly-classiefied? (equal target classify-result))
+                 (updated-weights (kohonen-update-lvq compet-layer-weight input compet-result
+                                                      correctly-classiefied? learning-rate)))
+            (format t "~&Q=~d, compet result: ~{~d~^ ~}~%Correctly classified: ~d~%Weight:~%~{~{~d~^ ~}~^~&~}~%" time compet-result correctly-classiefied? compet-layer-weight)
+            ;;CANNOT setf compet-layer-weight, that will leading to unpredictable results
+            (setf (nth compet-layer-id weights) updated-weights)
+            (format t "~%Updated to:~%~{~{~d~^ ~}~^~&~}~%~%" (nth compet-layer-id weights))
+            ))))
+  (format t "Trained network: ~d~%" network)
+  network)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -249,4 +292,22 @@ the weights of the compet layer should be normalized first. samples is a list of
               (loop for rows in compet-layer-weight
                     collect (first (normalize (list rows)))))))
     (sofm-learning network samples neuron-arranged learning-rate radius)
+    ))
+
+(defun example-lvq-page-318 (&optional (sample-repeats 1))
+  "LVQ example"
+  (let ((network (make-static-network :neurons (list 2 4 2)
+                                      :weights (list '((-0.543 0.84) (-0.969 -0.249) (0.997 0.094) (0.456 0.954))
+                                                     '((1 1 0 0) (0 0 1 1)))
+                                      :summers (list :dist :sum)
+                                      :transfers (list #'compet #'purelin)))
+        (learning-rate 0.5)
+        (samples (repeat-list (list (list '((1) (-1)) '((0) (1))))
+                              ;;(list '((-1) (-1)) '((1) (0)))
+                              ;;(list '((1) (1)) '((1) (0)))
+                              ;;(list '((-1) (1)) '((0) (1))))
+                              sample-repeats))
+        )
+    (format t "Initial network:~&~d~%~%" network)
+    (lvq-learning network samples learning-rate)
     ))
