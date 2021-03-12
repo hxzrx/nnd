@@ -547,28 +547,7 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
       accu
       (repeat-list lst (1- n) (append accu lst))))
 
-
-(defgeneric neighbour (matrix center radius)
-  (:documentation "collect the indices of the elements which are the neighbours of center")
-  (:method ((matrix list) (center list) (radius integer))
-    "for m * n matrix where center is the list of row and col subscripts of the center element of the matrix"
-    (let ((size (matrix-size matrix)))
-      (neighbour% (list (car size) (cdr size)) center radius)))
-  (:method ((matrix list) (center integer) (radius integer))
-    "for center is the i-th element in the matrix, center should between 0 and (m * n -1)"
-    (let* ((size (matrix-size matrix))
-           (rows (car size))
-           (cols (cdr size))
-           (x (mod center cols))
-           (y (/ (- center x) rows))
-           (polar (list x y)))
-      (neighbour% (list rows cols) polar radius))))
-
-
-
-
-
-(defun neighbour% (rank center radius)
+(defun neighbor% (rank center radius)
   "return a rhombus shape (square rotated pi/4) of id's of `matrix' for `center' with `radius', rank and center are both list"
   (let* ((rows (first rank))
          (cols (second rank))
@@ -590,3 +569,44 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
                            (loop for y from (- center-col i) to (+ center-col i)
                                  when (and (>= y 0) (< y cols))
                                    collect (list x y)))))))
+
+(defgeneric neighbor (matrix center radius)
+  (:documentation "collect the indices of the elements which are the neighbors of center")
+  (:method ((matrix list) (center list) (radius integer))
+    "for m * n matrix where center is the list of row and col subscripts of the center element of the matrix"
+    (let ((size (matrix-size matrix)))
+      (neighbour% (list (car size) (cdr size)) center radius)))
+  (:method ((matrix list) (center integer) (radius integer))
+    "for center is the i-th element in the matrix, center should between 0 and (m * n -1)"
+    (let* ((size (matrix-size matrix))
+           (rows (car size))
+           (cols (cdr size))
+           (x (mod center cols))
+           (y (/ (- center x) rows))
+           (polar (list x y)))
+      (neighbor% (list rows cols) polar radius))))
+
+(defmethod neighbor-id ((list-num integer) (arranged list) (center integer) (radius integer))
+  "if a list is arranged as an matrix, return the original indices of the the elements of the list whore are neighbors of the center place in the matrix with a radius"
+  (let* ((rows (first arranged))
+         (cols (second arranged))
+         (center-col (mod center cols))
+         (center-row (/ (- center (mod center cols)) cols)))
+    (assert (= list-num (* rows cols)))
+    (append
+     ;(apply #'append
+            (loop for x from (- center-row radius) to center-row
+                  for i from 0
+                  when (and (>= x 0) (< x rows))
+                    append
+                    (loop for y from (- center-col i) to (+ center-col i)
+                          when (and (>= y 0) (< y cols))
+                            collect (+ (* x cols) y)))
+            ;(apply #'append
+            (loop for x from (1+ center-row) to (+ center-row radius)
+                           for i from (1- radius) downto 0
+                           when (and (>= x 0) (< x rows))
+                             append
+                             (loop for y from (- center-col i) to (+ center-col i)
+                                   when (and (>= y 0) (< y cols))
+                                     collect (+ (* x cols) y))))))
