@@ -295,9 +295,6 @@
   "Return a cons (rows . cols). If m is not rectangle, return nil."
   (cons 1 1))
 
-(defun matrix-rank (m)
-  (matrix-size m))
-
 ;;;; ith row of a matrix
 (defgeneric nth-row (matrix nth)
   (:documentation "return the nth row of matrix, return a list, '((1 2 3))"))
