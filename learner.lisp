@@ -112,7 +112,7 @@
                (biases biases)
                (summers summers)
                (transfers transfers)) network
-    (when neurons ;initialize neurons from weights
+    (when (null neurons) ;initialize neurons from weights
       (setf neurons (neurons-from-weights weights)))
     (when (null biases)
       (if weights
@@ -167,18 +167,19 @@
 
 (defun cascaded-forward-output! (network weights biases summers transfers input)
   (if weights
-      (cascaded-forward-output (cdr weights)
-                               (cdr biases)
-                               (cdr summers)
-                               (cdr transfers)
-                               (let ((result
-                                       (funcall (car transfers) (ecase (car summers)
-                                                                  (:sum (matrix-add (matrix-product (car weights) input)
-                                                                                    (car biases)))
-                                                                  (:dist (matrix-product -1
-                                                                                         (dist (car weights) input)))))))
-                                 (add-neuron-outputs network result)
-                                 result))
+      (cascaded-forward-output! network
+                                (cdr weights)
+                                (cdr biases)
+                                (cdr summers)
+                                (cdr transfers)
+                                (let ((result
+                                        (funcall (car transfers) (ecase (car summers)
+                                                                   (:sum (matrix-add (matrix-product (car weights) input)
+                                                                                     (car biases)))
+                                                                   (:dist (matrix-product -1
+                                                                                          (dist (car weights) input)))))))
+                                  (add-neuron-outputs! network result)
+                                  result))
       input))
 
 (defmethod static-network-output! ((network static-network) input-vector)
