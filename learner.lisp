@@ -164,7 +164,8 @@
                                (funcall (car transfers) (ecase (car summers)
                                                           (:sum (matrix-add (matrix-product (car weights) input)
                                                                             (car biases)))
-                                                          (:dist (dist (car weights) input)))))
+                                                          (:dist (matrix-product -1
+                                                                                 (dist (car weights) input))))))
       input))
 
 (defmethod static-network-output ((network static-network) input-vector)
