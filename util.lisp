@@ -547,17 +547,31 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
       accu
       (repeat-list lst (1- n) (append accu lst))))
 
-(defmethod neighbour-row ((lst list) center radius)
-  "collect the indices of the elements which are the neighbours of center"
-  (let ((len (length lst)))
-    (loop for i from (max 0 (- center radius)) to (min (1- len) (+ center radius))
-          collect i)))
+
+(defgeneric neighbour (matrix center radius)
+  (:documentation "collect the indices of the elements which are the neighbours of center")
+  (:method ((matrix list) (center list) (radius integer))
+    "for m * n matrix where center is the list of row and col subscripts of the center element of the matrix"
+    (let ((size (matrix-size matrix)))
+      (neighbour% (list (car size) (cdr size)) center radius)))
+  (:method ((matrix list) (center integer) (radius integer))
+    "for center is the i-th element in the matrix, center should between 0 and (m * n -1)"
+    (let* ((size (matrix-size matrix))
+           (rows (car size))
+           (cols (cdr size))
+           (x (mod center cols))
+           (y (/ (- center x) rows))
+           (polar (list x y)))
+      (neighbour% (list rows cols) polar radius))))
+
+
+
 
 
 (defun neighbour% (rank center radius)
-  "return a rhombus shape (square rotated pi/4) of id's of `matrix' for `center' with `radius'"
-  (let* ((rows (car rank))
-         (cols (cdr rank))
+  "return a rhombus shape (square rotated pi/4) of id's of `matrix' for `center' with `radius', rank and center are both list"
+  (let* ((rows (first rank))
+         (cols (second rank))
          (center-row (first center))
          (center-col (second center)))
     (append
