@@ -1065,16 +1065,18 @@ if min and max were nil, the elements will be real number in [0, 1]"))
 (defgeneric distance (vector1 vector2 &optional type)
   (:documentation "distance of two vector, type :e means Euclidean distance, :m means Manhattan distance, :c means Chebyshev distance")
   (:method ((vector1 list) (vector2 list) &optional (type :e))
-    (ecase type
-      (:e (sqrt (loop for x in vector1
-                      for y in vector2
-                      sum (* (- (car x) (car y)) (- (car x) (car y))))))
-      (:m (loop for x in vector1
-                for y in vector2
-                sum (abs (- (car x) (car y)))))
-      (:c (apply #'max (loop for x in vector1
-                             for y in vector2
-                             collect (abs (- (car x) (car y))))))))
+    (if (column-vector-p vector1)
+        (ecase type
+          (:e (sqrt (loop for x in vector1
+                          for y in vector2
+                          sum (* (- (car x) (car y)) (- (car x) (car y))))))
+          (:m (loop for x in vector1
+                    for y in vector2
+                    sum (abs (- (car x) (car y)))))
+          (:c (apply #'max (loop for x in vector1
+                                 for y in vector2
+                                 collect (abs (- (car x) (car y)))))))
+        (distance (transpose vector1) (transpose vector2)))))
   (:method ((vector1 number) (vector2 number) &optional type)
     (declare (ignore type))
     (abs (- vector1 vector2))))
