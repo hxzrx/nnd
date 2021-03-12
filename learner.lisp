@@ -88,7 +88,7 @@
            :type list
            :initform nil
            :documentation "the list of biases for the layers")
-   (summers :initarg :biases :accessor summer :type list :initform nil :documentation "the list of symbols described how the net inputs were producted, default :sum, and in competitive networks they may be :dist")
+   (summers :initarg :summers :accessor summers :type list :initform nil :documentation "the list of symbols described how the net inputs were producted, default :sum, and in competitive networks they may be :dist")
    (transfers :initarg :transfers
               :accessor transfers
               :type list
