@@ -571,7 +571,8 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
                             collect (list x y))))
      (apply #'append (loop for x from (1+ center-row) to (+ center-row radius)
                            for i from (1- radius) downto 0
-                           ;;when
+                           when (and (>= x 0) (< x rows))
                            collect
                            (loop for y from (- center-col i) to (+ center-col i)
-                                 collect (list x y)))))))
+                                 when (and (>= y 0) (< y cols))
+                                   collect (list x y)))))))
