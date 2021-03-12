@@ -27,6 +27,7 @@ In SOFM, neuros can be arranged as an m * n matrix. `neuro-arranged' ia a list (
                          (list neurons 1)))
            (rad (if radius radius 1))
            (update-neurons (neighbor-id neurons arranged center rad)))
+      (format t "Updating neurons: ~{~d~^ ~}~%" update-neurons)
       (loop for neuron-weight in old-weight
             for i from 0
             collect (if (member i update-neurons)
@@ -43,6 +44,8 @@ In SOFM, neuros can be arranged as an m * n matrix. `neuro-arranged' ia a list (
           (nth-win (cdr compet-result) (1+ n)))
       nil))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; competitive learning
 
 (defmethod competitive-learning ((network static-network) samples &optional (learning-rate 0.5))
   "Kohonen rule: w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron.
@@ -59,7 +62,7 @@ the weights of the compet layer should be normalized first. samples is a list of
           (format t "~&Q=~d, compet result: ~{~d~^ ~}~%Weight:~%~{~{~d~^ ~}~^~&~}~%" time compet-result compet-layer-weight)
           ;;CANNOT setf compet-layer-weight, that will leading to unpredictable results
           (setf (nth compet-layer-id weights) updated-weights)
-          (format t "~&Updated to:~%~{~{~d~^ ~}~^~&~}~%~%" (nth compet-layer-id weights))
+          (format t "~%Updated to:~%~{~{~d~^ ~}~^~&~}~%~%" (nth compet-layer-id weights))
           ))))
   (format t "Trained network: ~d~%" network)
   network)
@@ -106,12 +109,39 @@ the weights of the compet layer should be normalized first. samples is a list of
             ;;CANNOT setf compet-layer-weight, that will leading to unpredictable results
             (setf (nth compet-layer-id weights) updated-weights)
             (setf (nth compet-layer-id biases) updated-biases)
-            (format t "~&Updated weights:~%~{~{~d~^ ~}~^~&~}~&Updated biases:~%~{~{~d~^ ~}~^~&~}~%~%" (nth compet-layer-id weights) (nth compet-layer-id biases))
+            (format t "~%Updated to:~&weights:~%~{~{~d~^ ~}~^~&~}~&Updated biases:~%~{~{~d~^ ~}~^~&~}~%~%" (nth compet-layer-id weights) (nth compet-layer-id biases))
             ))))
     (format t "Trained network: ~d~%" network)
     network))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;SOFM
 
+(defmethod sofm-learning ((network static-network) samples &optional neuron-arranged (learning-rate 0.5) (radius 1))
+  "self-organizing feature maps"
+    (with-slots ((weights weights)
+                 (neurons neurons)) network
+      (let* ((compet-layer-id 0)
+             (time 0)
+             (arranged (if neuron-arranged
+                           neuron-arranged
+                           (list (nth (1+ compet-layer-id) neurons)))))
+        (dolist (sample samples)
+          (incf time)
+          (let* ((input (first sample))
+                 (compet-layer-weight (first weights))
+                 (compet-result (static-network-output network input))
+                 (updated-weights (kohonen-update-neighbor compet-layer-weight input compet-result
+                                                           :learning-rate learning-rate
+                                                           :radius radius
+                                                           :neuron-arranged  arranged)))
+            (format t "~&Q=~d, compet result: ~{~d~^ ~}~%Weight:~%~{~{~d~^ ~}~^~&~}~%" time compet-result compet-layer-weight)
+            ;;CANNOT setf compet-layer-weight, that will leading to unpredictable results
+            (setf (nth compet-layer-id weights) updated-weights)
+            (format t "~%Updated to:~%~{~{~d~^ ~}~^~&~}~%~%" (nth compet-layer-id weights))
+            ))))
+  (format t "Trained network: ~d~%" network)
+  network)
 
 
 
@@ -198,3 +228,25 @@ the weights of the compet layer should be normalized first. samples is a list of
               (loop for rows in compet-layer-weight
                     collect (first (normalize (list rows)))))))
     (competitive-learning network samples 0.5)))
+
+(defun example-p15.4-page-318 (&optional (sample-repeats 1))
+  "SOFM example"
+  (let ((network (make-static-network :neurons (list 3 9)
+                                      :weights (list '((0.41 0.41 0.82) (0.45 0 0.89) (0.41 -0.41 0.82) (0 0.45 0.89) (0 0 1)
+                                                       (0 -0.45 0.89) (-0.41 0.41 0.82) (-0.45 0 0.89) (-0.41 -0.41 0.82)))
+                                      :summers (list :sum)
+                                      :transfers (list #'compet)))
+        (learning-rate 0.1)
+        (radius 1)
+        (neuron-arranged (list 9 1))
+        (samples (repeat-list (list (list '((0.67) (0.07) (0.74))))
+                              sample-repeats))
+        )
+    (format t "Initial network:~&~d~%~%" network)
+    (with-slots ((weights weights)) network ;normalize the compet layer's weight
+      (let* ((compet-layer-weight (first weights)))
+        (setf compet-layer-weight
+              (loop for rows in compet-layer-weight
+                    collect (first (normalize (list rows)))))))
+    (sofm-learning network samples neuron-arranged learning-rate radius)
+    ))
