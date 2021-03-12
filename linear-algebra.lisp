@@ -1076,7 +1076,7 @@ if min and max were nil, the elements will be real number in [0, 1]"))
           (:c (apply #'max (loop for x in vector1
                                  for y in vector2
                                  collect (abs (- (car x) (car y)))))))
-        (distance (transpose vector1) (transpose vector2)))))
+        (distance (transpose vector1) (transpose vector2))))
   (:method ((vector1 number) (vector2 number) &optional type)
     (declare (ignore type))
     (abs (- vector1 vector2))))
