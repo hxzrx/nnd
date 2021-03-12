@@ -2,6 +2,19 @@
 
 ;;;; Chapter 15, Dynamic Networks
 
+(defgeneric kohonen-update (old-weight input compet-result learning-rate)
+  (:documentation "Kohonen rule: w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron and not changed for the failed")
+  (:method ((old-weight list) (input list) compet-result learning-rate)
+    "`old-weight' is a weight matrix and `input' is a column vector"
+    (loop for cpt-res in (car (transpose compet-result))
+          for weight in old-weight
+          collect (if (< (abs (- cpt-res 1)) 0.00000001)
+                      (let ((weight-row (list weight)) ;winner
+                            (input-row (transpose input)))
+                        (first (matrix-add (matrix-product (- 1 learning-rate) weight-row)
+                                           (matrix-product learning-rate input-row))))
+                      weight))))
+
 
 (defmethod competitive-learning ((network static-network) samples &optional (learning-rate 0.5))
   "Kohonen rule: w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron.
@@ -14,16 +27,8 @@ the weights of the compet layer should be normalized first. samples is a list of
         (let* ((input (first sample))
                (compet-layer-weight (first weights))
                (compet-result (static-network-output network input))
-               (updated-weights (loop for cpt-res in (car (transpose compet-result))
-                                      for neuro-weight in compet-layer-weight
-                                      collect (if (< (abs (- cpt-res 1)) 0.00000001)
-                                                  (let ((weight-row (list neuro-weight)) ;winner
-                                                        (input-row (transpose input)))
-                                                    (first (matrix-add (matrix-product (- 1 learning-rate) weight-row)
-                                                                       (matrix-product learning-rate input-row))))
-                                                  neuro-weight))))
+               (updated-weights (kohonen-update compet-layer-weight input compet-result learning-rate)))
           (format t "~&Q=~d, compet result: ~{~d~^ ~}~%Weight:~%~{~{~d~^ ~}~^~&~}~%" time compet-result compet-layer-weight)
-
           ;;CANNOT setf compet-layer-weight, that will leading to unpredictable results
           (setf (nth compet-layer-id weights) updated-weights)
           (format t "~&Updated to:~%~{~{~d~^ ~}~^~&~}~%~%" (nth compet-layer-id weights))
@@ -39,6 +44,15 @@ the weights of the compet layer should be normalized first. samples is a list of
         for index from 0
         when (equal w-old w-new)
           collect index))
+
+(defgeneric conscious-update (old-biases compet-result &optional fail-factor win-sub epsilon)
+  (:documentation "update biases utlizing conscious, page 324, E15.4 of the textbook")
+  (:method ((old-biases list) (compet-result list) &optional (fail-shrink 0.9) (win-sub 0.2) (epsilon 0.00000001))
+    (loop for cpt-res in (car (transpose compet-result))
+          for neuro-bias in old-biases
+          collect (if (< (abs (- cpt-res 1)) epsilon)
+                      (list (- (car neuro-bias) win-sub)) ;winner
+                      (list (* fail-shrink (car neuro-bias)))))))
 
 (defmethod competitive-learning-consicious ((network static-network) samples &optional (learning-rate 0.5))
   "Kohonen rule: w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron.
@@ -58,21 +72,9 @@ the weights of the compet layer should be normalized first. samples is a list of
                  (compet-layer-weight (first weights))
                  (compet-layer-bias   (first biases))
                  (compet-result (static-network-output network input))
-                 (updated-weights (loop for cpt-res in (car (transpose compet-result))
-                                        for neuro-weight in compet-layer-weight
-                                        collect (if (< (abs (- cpt-res 1)) 0.00000001)
-                                                    (let ((weight-row (list neuro-weight)) ;winner
-                                                          (input-row (transpose input)))
-                                                      (first (matrix-add (matrix-product (- 1 learning-rate) weight-row)
-                                                                         (matrix-product learning-rate input-row))))
-                                                    neuro-weight)))
-                 (updated-biases (loop for cpt-res in (car (transpose compet-result))
-                                       for neuro-bias in compet-layer-bias
-                                       collect (if (< (abs (- cpt-res 1)) 0.00000001)
-                                                   (list (- (car neuro-bias) 0.2)) ;winner
-                                                   (list (* 0.9 (car neuro-bias)))))))
+                 (updated-weights (kohonen-update compet-layer-weight input compet-result learning-rate))
+                 (updated-biases (conscious-update compet-layer-bias compet-result)))
             (format t "~&Q=~d, compet result: ~{~d~^ ~}~%Weight:~%~{~{~d~^ ~}~^~&~}~&Biases:~&~{~{~d~^ ~}~^~&~}~%" time compet-result compet-layer-weight compet-layer-bias)
-
             ;;CANNOT setf compet-layer-weight, that will leading to unpredictable results
             (setf (nth compet-layer-id weights) updated-weights)
             (setf (nth compet-layer-id biases) updated-biases)
