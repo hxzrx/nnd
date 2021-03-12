@@ -174,3 +174,9 @@
                (summers summers)
                (transfers transfers)) network
     (cascaded-forward-output weights biases summers transfers input-vector)))
+
+(defgeneric normalize-weight (network nth-layer &optional normalized-len)
+  (:documentation "normalize the weights matrix of the nth-layer of a static network so that all the rows have the same length")
+  (:method ((network static-network) (nth-layer integer) &optional (normalized-len 1))
+    (with-slots ((weights weights)) network
+      (setf (nth nth-layer weights) (normalize-matrix (nth nth-layer weights ) normalized-len)))))
