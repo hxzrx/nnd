@@ -313,7 +313,7 @@ the weights of the compet layer should be normalized first. samples is a list of
     ))
 
 (defun exercise-E15.16-page-327 (&optional (sample-repeats 1))
-  "LVQ example"
+  "LVQ exercise"
   (let ((network (make-static-network :neurons (list 2 3 2)
                                       :weights (list '((1 0) (0 1) (0 0))
                                                      '((1 1 0) (0 0 1)))
@@ -328,4 +328,27 @@ the weights of the compet layer should be normalized first. samples is a list of
         )
     (format t "Initial network:~&~d~%~%" network)
     (lvq-learning network samples learning-rate)
+    ))
+
+
+(defun exercise-E15.10-page-325 (&optional (learning-rate 0.5))
+  (let ((compet-network (make-static-network :neurons (list 2 16)
+                                      :biases (list (make-zeros 16 1))
+                                      :summers (list :dist)
+                                             :transfers (list #'compet)))
+        (sofm-network (make-static-network :neurons (list 2 16)
+                                      :biases (list (make-zeros 16 1))
+                                      :summers (list :dist)
+                                      :transfers (list #'compet)))
+        (radius 1)
+        (neuron-arranged (list 4 4))
+        (samples (loop for i from 0 below 200
+                       collect
+                       (list (list (list (rand-between 0 1)) (list (rand-between 2 3)))))))
+    (format t "~%Competitive with Kohonen rule.~%")
+    (competitive-learning compet-network samples learning-rate)
+    (format t "~%SOFM learning.~%")
+    (sofm-learning sofm-network samples neuron-arranged learning-rate radius)
+    (format t "competitive network: ~d~%" compet-network)
+    (format t "SOFM network: ~d~%" sofm-network)
     ))
