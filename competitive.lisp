@@ -15,6 +15,26 @@
                                            (matrix-product learning-rate input-row))))
                       weight))))
 
+(defgeneric kohonen-update-neighbor (old-weight input compet-result &key neuron-arranged radius learning-rate)
+  (:documentation "Kohonen rule: w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the neurons that are neighbors of the winning neuro.
+In SOFM, neuros can be arranged as an m * n matrix. `neuro-arranged' ia a list (list m n) and m*n should eql to the length of `old-weight'")
+  (:method ((old-weight list) (input list) (compet-result list) &key neuron-arranged (radius 0) (learning-rate 0.5))
+    "the generic `kohonen-update' is a special case when radius=0"
+    (let* ((center (nth-win compet-result))
+           (neurons (length old-weight))
+           (arranged (if neuron-arranged
+                         neuron-arranged
+                         (list neurons 1)))
+           (rad (if radius radius 1))
+           (update-neurons (neighbor-id neurons arranged center rad)))
+      (loop for neuron-weight in old-weight
+            for i from 0
+            collect (if (member i update-neurons)
+                        (first (matrix-add (matrix-product (- 1 learning-rate) (list neuron-weight))
+                                           (matrix-product learning-rate (transpose input))))
+                        neuron-weight)))))
+
+
 (defun nth-win (compet-result &optional (n 0))
   "compet-result is a column vector with one element is one and else elements are zeros"
   (if compet-result
@@ -22,6 +42,7 @@
           n
           (nth-win (cdr compet-result) (1+ n)))
       nil))
+
 
 (defmethod competitive-learning ((network static-network) samples &optional (learning-rate 0.5))
   "Kohonen rule: w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron.
