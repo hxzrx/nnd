@@ -93,7 +93,9 @@
               :accessor transfers
               :type list
               :initform nil
-              :documentation "the list of transfer functions for the layers"))
+              :documentation "the list of transfer functions for the layers")
+   (neuron-outputs :initarg :neuron-outputs :accessor neuron-outputs :type list :initform nil
+                   :documentation "temporary storage the list of the output of each layer for one forward propagation for an input"))
   (:documentation "A static network with a list of weights , a list of biases, etc."))
 
 (defun make-static-network (&key neurons weights biases summers transfers)
@@ -153,30 +155,43 @@
 (defmethod get-bias ((network static-network))
   (biases network))
 
+(defmethod empty-neuron-outputs! ((network static-network))
+  (with-slots ((neuron-outputs neuron-outputs)) network
+    (setf neuron-outputs nil)))
+
+(defmethod add-neuron-outputs! ((network static-network) output)
+  (with-slots ((neuron-outputs neuron-outputs)) network
+    (setf neuron-outputs (append neuron-outputs (list output)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun cascaded-forward-output (weights biases summers transfers input)
+(defun cascaded-forward-output! (network weights biases summers transfers input)
   (if weights
       (cascaded-forward-output (cdr weights)
                                (cdr biases)
                                (cdr summers)
                                (cdr transfers)
-                               (funcall (car transfers) (ecase (car summers)
-                                                          (:sum (matrix-add (matrix-product (car weights) input)
-                                                                            (car biases)))
-                                                          (:dist (matrix-product -1
-                                                                                 (dist (car weights) input))))))
+                               (let ((result
+                                       (funcall (car transfers) (ecase (car summers)
+                                                                  (:sum (matrix-add (matrix-product (car weights) input)
+                                                                                    (car biases)))
+                                                                  (:dist (matrix-product -1
+                                                                                         (dist (car weights) input)))))))
+                                 (add-neuron-outputs network result)
+                                 result))
       input))
 
-(defmethod static-network-output ((network static-network) input-vector)
+(defmethod static-network-output! ((network static-network) input-vector)
   "calc the output of a static network"
   (with-slots ((weights weights)
                (biases biases)
                (summers summers)
-               (transfers transfers)) network
-    (cascaded-forward-output weights biases summers transfers input-vector)))
+               (transfers transfers)
+               (neuron-outputs neuron-outputs)) network
+    (setf neuron-outputs nil)
+    (cascaded-forward-output! network weights biases summers transfers input-vector)))
 
-(defgeneric normalize-weight (network nth-layer &optional normalized-len)
+(defgeneric normalize-weight! (network nth-layer &optional normalized-len)
   (:documentation "normalize the weights matrix of the nth-layer of a static network so that all the rows have the same length")
   (:method ((network static-network) (nth-layer integer) &optional (normalized-len 1))
     (with-slots ((weights weights)) network
