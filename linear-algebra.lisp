@@ -838,6 +838,12 @@
   (:method ((vector list) &optional (normalized-len 1))
     (matrix-product normalized-len (normalize-vector vector))))
 
+(defgeneric normalize-matrix (matrix &optional normalized-len)
+  (:documentation "normalize a matrix so that its row has the same length")
+  (:method ((matrix list) &optional (normalized-len 1))
+    (loop for row in matrix
+          append (normalize (list row) normalized-len))))
+
 ;;;; orthogonalization
 (defgeneric orthogonalization (matrix)
   (:documentation
