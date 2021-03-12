@@ -15,6 +15,13 @@
                                            (matrix-product learning-rate input-row))))
                       weight))))
 
+(defun nth-win (compet-result &optional (n 0))
+  "compet-result is a column vector with one element is one and else elements are zeros"
+  (if compet-result
+      (if (= (caar compet-result) 1)
+          n
+          (nth-win (cdr compet-result) (1+ n)))
+      nil))
 
 (defmethod competitive-learning ((network static-network) samples &optional (learning-rate 0.5))
   "Kohonen rule: w(q) = w(q-1) + alpha * (p(q) - w(q-1)) for the winning neuron.
