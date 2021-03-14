@@ -147,6 +147,13 @@
   "list type, f(n) = n ^ 3"
   (collect-transfer #'cube net-output))
 
+;;;; gaussian
+(defgeneric gaussian (net-output)
+  (:documentation "f(n) = exp(-n^2)")
+  (:method ((n real))
+    (exp (* -1 n n)))
+  (:method ((net-output list))
+    (collect-transfer #'gaussian net-output)))
 
 #+:ignore
 (defgeneric derivative (function-type)
@@ -155,11 +162,12 @@
 
 (defun derivative (fun-type)
   ""
-  (cond ((eq fun-type :purelin) #'(lambda (x) (declare (ignore x)) 1))
-        ((eq fun-type :logsig)  #'(lambda (x) (* (logsig x) (- 1 (logsig x)))))
-        ((eq fun-type :tansig)  #'(lambda (x) (- 1 (expt (tansig x) 2))))
-        ((eq fun-type :square)  #'(lambda (x) (* 2 x)))
-        ((eq fun-type :cube)    #'(lambda (x) (* 3 x x)))
+  (cond ((eq fun-type :purelin)  #'(lambda (x) (declare (ignore x)) 1))
+        ((eq fun-type :logsig)   #'(lambda (x) (* (logsig x) (- 1 (logsig x)))))
+        ((eq fun-type :tansig)   #'(lambda (x) (- 1 (expt (tansig x) 2))))
+        ((eq fun-type :square)   #'(lambda (x) (* 2 x)))
+        ((eq fun-type :cube)     #'(lambda (x) (* 3 x x)))
+        ((eq fun-type :gaussian) #'(lambda (x) (* (exp (* -1 x x)) -2 x)))
         (t (format t "Not implimented yet!"))))
 
 
