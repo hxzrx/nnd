@@ -88,6 +88,10 @@
            :type list
            :initform nil
            :documentation "the list of biases for the layers")
+   (input-proc :initarg :input-proc :accessor input-proc :type list :initform nil
+               :documentation "describes the process type of Wp or ||W-p||, the type is a list of keywords for each layer, the valid keywords are :* and :||, default :*")
+   (bias-proc :initarg :bias-proc :accessor bias-proc :type list :initform nil
+              :documentation "describe the process type of Wp + b or Wp .* p, the type is a list of keywords for each layer, the valid keywords are :+ and :.*, defalt :+")
    (summers :initarg :summers :accessor summers :type list :initform nil :documentation "the list of symbols described how the net inputs were producted, default :sum, and in competitive networks they may be :dist. strictly, :dist is not the behavior by summer and :dist was one type of process about how the weights act on the input, the summer may be sum, multiply, and so on.")
    (transfers :initarg :transfers
               :accessor transfers
@@ -98,11 +102,13 @@
                    :documentation "temporary storage the list of the output of each layer for one forward propagation for an input"))
   (:documentation "A static network with a list of weights , a list of biases, etc."))
 
-(defun make-static-network (&key neurons weights biases summers transfers)
+(defun make-static-network (&key neurons weights biases input-proc bias-proc summers transfers)
   (make-instance 'static-network
                  :neurons neurons
                  :weights weights
                  :biases biases
+                 :input-proc input-proc
+                 :bias-proc bias-proc
                  :summers summers
                  :transfers transfers))
 
@@ -110,6 +116,8 @@
   (with-slots ((neurons neurons)
                (weights weights)
                (biases biases)
+               (input-proc input-proc)
+               (bias-proc bias-proc)
                (summers summers)
                (transfers transfers)) network
     (when (null neurons) ;initialize neurons from weights
@@ -120,6 +128,12 @@
           (setf biases (neurons-to-random-biases neurons -0.5 0.5))))
     (when (null weights) ;initialize with random matrices
       (setf weights (neurons-to-random-weights neurons -0.5 0.5)))
+    (when (null input-proc)
+      (setf input-proc (loop for n in (cdr neurons)
+                             collect :*)))
+    (when (null bias-proc)
+      (setf bias-proc (loop for n in (cdr neurons)
+                            collect :+)))
     (when (null summers) ;default
       (setf summers (loop for n in (cdr neurons)
                           collect :sum)))
