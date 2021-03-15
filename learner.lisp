@@ -89,10 +89,9 @@
            :initform nil
            :documentation "the list of biases for the layers")
    (input-proc :initarg :input-proc :accessor input-proc :type list :initform nil
-               :documentation "describes the process type of Wp or ||W-p||, the type is a list of keywords for each layer, the valid keywords are :* and :||, default :*")
+               :documentation "describes the process type of Wp or ||W-p||, the type is a list of keywords for each layer, the valid keywords are :*, :|| and :-||, default :*")
    (bias-proc :initarg :bias-proc :accessor bias-proc :type list :initform nil
               :documentation "describe the process type of Wp + b or Wp .* p, the type is a list of keywords for each layer, the valid keywords are :+ and :.*, defalt :+")
-   (summers :initarg :summers :accessor summers :type list :initform nil :documentation "the list of symbols described how the net inputs were producted, default :sum, and in competitive networks they may be :dist. strictly, :dist is not the behavior by summer and :dist was one type of process about how the weights act on the input, the summer may be sum, multiply, and so on.")
    (transfers :initarg :transfers
               :accessor transfers
               :type list
@@ -102,14 +101,13 @@
                    :documentation "temporary storage the list of the output of each layer for one forward propagation for an input"))
   (:documentation "A static network with a list of weights , a list of biases, etc."))
 
-(defun make-static-network (&key neurons weights biases input-proc bias-proc summers transfers)
+(defun make-static-network (&key neurons weights biases input-proc bias-proc transfers)
   (make-instance 'static-network
                  :neurons neurons
                  :weights weights
                  :biases biases
                  :input-proc input-proc
                  :bias-proc bias-proc
-                 :summers summers
                  :transfers transfers))
 
 (defmethod initialize-instance :after ((network static-network) &key &allow-other-keys)
@@ -134,9 +132,6 @@
     (when (null bias-proc)
       (setf bias-proc (loop for n in (cdr neurons)
                             collect :+)))
-    (when (null summers) ;default
-      (setf summers (loop for n in (cdr neurons)
-                          collect :sum)))
     (when (every #'symbolp transfers)
       (setf transfers (loop for sbl in transfers
                             collect (symbol-function sbl))))))
@@ -147,15 +142,13 @@
                (biases biases)
                (input-proc input-proc)
                (bias-proc bias-proc)
-               (summers summers)
                (transfers transfers)) network
-    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&input-proc: ~{~d~^ ~}~&bias-proc: ~{~d~^ ~}~&summers: ~{~d~^ ~}~&transfers:~{~d~^ ~}~&"
+    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&input-proc: ~{~d~^ ~}~&bias-proc: ~{~d~^ ~}~&transfers:~{~d~^ ~}~&"
             neurons
             weights
             (loop for b in biases collect (transpose b))
             input-proc
             bias-proc
-            summers
             transfers)))
 
 (defmethod print-object ((network static-network) stream)
@@ -184,10 +177,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun weight-op-input (weight input op)
-  "Wp or ||Wp||"
+  "Wp or ||Wp|| or -||Wp||"
   (ecase op
     (:* (matrix-product weight input))
-    (:|| (dist weight input))))
+    (:|| (dist weight input))
+    (:-|| (matrix-product -1 (dist weight input)))))
 
 (defun Wp-op-bias (Wp bias op)
   "Wp+bias or Wp.*bias"
@@ -195,27 +189,19 @@
     (:+ (matrix-add Wp bias))
     (:.* (element-wise-mul Wp bias))))
 
-(defun cascaded-forward-output! (network weights biases input-proc bias-proc summers transfers input)
+(defun cascaded-forward-output! (network weights biases input-proc bias-proc transfers input)
   (if weights
       (cascaded-forward-output! network
                                 (cdr weights)
                                 (cdr biases)
                                 (cdr input-proc)
                                 (cdr bias-proc)
-                                (cdr summers)
                                 (cdr transfers)
                                 (let ((result
-                                        (if summers
-                                            (funcall (car transfers) (ecase (car summers)
-                                                                   (:sum (matrix-add (matrix-product (car weights) input)
-                                                                                     (car biases)))
-                                                                   (:dist (matrix-product -1
-                                                                                          (dist (car weights) input)))))
-                                            (funcall (car transfers)
-                                                     (Wp-op-bias (weight-op-input (car weights) input (car input-proc))
-                                                                 (car biases)
-                                                                 (car bias-proc)))
-                                            )))
+                                        (funcall (car transfers)
+                                                 (Wp-op-bias (weight-op-input (car weights) input (car input-proc))
+                                                             (car biases)
+                                                             (car bias-proc)))))
                                   (add-neuron-outputs! network result)
                                   result))
       input))
@@ -226,11 +212,10 @@
                (biases biases)
                (input-proc input-proc)
                (bias-proc bias-proc)
-               (summers summers)
                (transfers transfers)
                (neuron-outputs neuron-outputs)) network
     (setf neuron-outputs nil)
-    (cascaded-forward-output! network weights biases input-proc bias-proc summers transfers input-vector)))
+    (cascaded-forward-output! network weights biases input-proc bias-proc transfers input-vector)))
 
 (defgeneric normalize-weight! (network nth-layer &optional normalized-len)
   (:documentation "normalize the weights matrix of the nth-layer of a static network so that all the rows have the same length")
