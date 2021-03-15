@@ -148,12 +148,13 @@
   (collect-transfer #'cube net-output))
 
 ;;;; gaussian
-(defgeneric gaussian (net-output)
-  (:documentation "f(n) = exp(-n^2)")
+(defgeneric radbas (net-output)
+  (:documentation "Gaussian function: f(n) = exp(-n^2)")
   (:method ((n real))
     (exp (* -1 n n)))
   (:method ((net-output list))
-    (collect-transfer #'gaussian net-output)))
+    (collect-transfer #'radbas net-output)))
+
 
 #+:ignore
 (defgeneric derivative (function-type)
@@ -167,7 +168,7 @@
         ((eq fun-type :tansig)   #'(lambda (x) (- 1 (expt (tansig x) 2))))
         ((eq fun-type :square)   #'(lambda (x) (* 2 x)))
         ((eq fun-type :cube)     #'(lambda (x) (* 3 x x)))
-        ((eq fun-type :gaussian) #'(lambda (x) (* (exp (* -1 x x)) -2 x)))
+        ((eq fun-type :radbas) #'(lambda (x) (* (exp (* -1 x x)) -2 x)))
         (t (format t "Not implimented yet!"))))
 
 
@@ -176,5 +177,8 @@
   (:method ((weights list) (vector list))
     (loop for row in weights
           collect (list (distance (transpose (list row)) vector))))
+  (:method ((weights list) (vector number))
+    (loop for row in weights
+          collect (list (dist (car row) vector))))
   (:method ((weights number) (vector number))
     (distance weights vector)))
