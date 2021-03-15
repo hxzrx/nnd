@@ -89,7 +89,7 @@
            :initform nil
            :documentation "the list of biases for the layers")
    (input-proc :initarg :input-proc :accessor input-proc :type list :initform nil
-               :documentation "describes the process type of Wp or ||W-p||, the type is a list of keywords for each layer, the valid keywords are :*, :|| and :-||, default :*")
+               :documentation "describes the process type of Wp or ||W-p||, the type is a list of keywords for each layer, the valid keywords are :*, :|dist| and :-|dist|, default :*")
    (bias-proc :initarg :bias-proc :accessor bias-proc :type list :initform nil
               :documentation "describe the process type of Wp + b or Wp .* p, the type is a list of keywords for each layer, the valid keywords are :+ and :.*, defalt :+")
    (transfers :initarg :transfers
@@ -143,7 +143,7 @@
                (input-proc input-proc)
                (bias-proc bias-proc)
                (transfers transfers)) network
-    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&input-proc: ~{~d~^ ~}~&bias-proc: ~{~d~^ ~}~&transfers:~{~d~^ ~}~&"
+    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&input-proc: ~{~s~^ ~}~&bias-proc: ~{~s~^ ~}~&transfers:~{~d~^ ~}~&"
             neurons
             weights
             (loop for b in biases collect (transpose b))
@@ -180,8 +180,8 @@
   "Wp or ||Wp|| or -||Wp||"
   (ecase op
     (:* (matrix-product weight input))
-    (:|| (dist weight input))
-    (:-|| (matrix-product -1 (dist weight input)))))
+    (:|dist| (dist weight input))
+    (:-|dist| (matrix-product -1 (dist weight input)))))
 
 (defun Wp-op-bias (Wp bias op)
   "Wp+bias or Wp.*bias"

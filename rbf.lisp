@@ -14,7 +14,7 @@
   (let ((network (make-static-network :neurons (list 1 3)
                                       :weights (list '((-2) (0) (2)))
                                       :biases (list '((0.5) (0.5) (0.5)))
-                                      :input-proc (list :||)
+                                      :input-proc (list :|dist|)
                                       :bias-proc (list :.*)
                                       :transfers (list #'radbas)))
         (inputs '(-2 -1.2 -0.4 0.4 1.2 2)))
