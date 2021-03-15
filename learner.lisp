@@ -145,12 +145,16 @@
   (with-slots ((neurons neurons)
                (weights weights)
                (biases biases)
+               (input-proc input-proc)
+               (bias-proc bias-proc)
                (summers summers)
                (transfers transfers)) network
-    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&summers: ~{~d~^ ~}~&transfers:~{~d~^ ~}~&"
+    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&input-proc: ~{~d~^ ~}~&bias-proc: ~{~d~^ ~}~&summers: ~{~d~^ ~}~&transfers:~{~d~^ ~}~&"
             neurons
             weights
             (loop for b in biases collect (transpose b))
+            input-proc
+            bias-proc
             summers
             transfers)))
 
