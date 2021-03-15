@@ -252,7 +252,37 @@
   (alexandria:when-let (matrices-removed-nil (remove nil matrices))
     (reduce #'matrix-add matrices-removed-nil)))
 
-;;;; inner produce
+;;;; Element-wise op
+
+(defgeneric element-wise (matrix1 matrix2 op)
+  (:documentation "element-wise operation between matrix1 and matrix2")
+  (:method ((matrix1 list) (matrix2 list) (op function))
+    (assert (equal (matrix-size matrix1) (matrix-size matrix2)))
+    (loop for row1 in matrix1
+          for row2 in matrix2
+          collect
+          (loop for elem1 in row1
+                for elem2 in row2
+                collect (funcall op elem1 elem2))))
+  (:method ((n1 number) (n2 number) (op function))
+    (funcall op n1 n2)))
+
+(defun element-wise-add (matrix1 matrix2)
+  (element-wise matrix1 matrix2 #'+))
+
+(defun element-wise-sub (matrix1 matrix2)
+  (element-wise matrix1 matrix2 #'-))
+
+(defun element-wise-mul (matrix1 matrix2)
+  (element-wise matrix1 matrix2 #'*))
+
+(defun element-wise-div (matrix1 matrix2)
+  (element-wise matrix1 matrix2 #'/))
+
+(defun element-wise-exp (matrix1 matrix2)
+  (element-wise matrix1 matrix2 #'expt))
+
+;;;; inner product
 (defgeneric inner-product (a b)
   (:documentation "inner product of vector a and b"))
 
