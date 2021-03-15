@@ -9,7 +9,7 @@
   :author "He Xiang-zhi <xz.he@qq.com>"
   :maintainer "He Xiang-zhi <xz.he@qq.com>"
   :homepage "https://gitee.com/hxz/nnd"
-  :version 0.1.2
+  :version 0.2.0
   :license "MulanPSL-2.0"
   :depends-on (#:alexandria
                #:assoc-utils
@@ -33,4 +33,5 @@
                (:file "bp-variations")
                (:file "generalization")
                (:file "dynamic")
-               (:file "competitive")))
+               (:file "competitive")
+               (:file "rbf")))
