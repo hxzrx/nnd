@@ -179,19 +179,39 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun cascaded-forward-output! (network weights biases summers transfers input)
+(defun weight-op-input (weight input op)
+  "Wp or ||Wp||"
+  (ecase op
+    (:* (matrix-product weight input))
+    (:|| (dist weight input))))
+
+(defun Wp-op-bias (Wp bias op)
+  "Wp+bias or Wp.*bias"
+  (ecase op
+    (:+ (matrix-add Wp bias))
+    (:.* (element-wise-mul Wp bias))))
+
+(defun cascaded-forward-output! (network weights biases input-proc bias-proc summers transfers input)
   (if weights
       (cascaded-forward-output! network
                                 (cdr weights)
                                 (cdr biases)
+                                (cdr input-proc)
+                                (cdr bias-proc)
                                 (cdr summers)
                                 (cdr transfers)
                                 (let ((result
-                                        (funcall (car transfers) (ecase (car summers)
+                                        (if summers
+                                            (funcall (car transfers) (ecase (car summers)
                                                                    (:sum (matrix-add (matrix-product (car weights) input)
                                                                                      (car biases)))
                                                                    (:dist (matrix-product -1
-                                                                                          (dist (car weights) input)))))))
+                                                                                          (dist (car weights) input)))))
+                                            (funcall (car transfers)
+                                                     (Wp-op-bias (weight-op-input (car weights) input (car input-proc))
+                                                                 (car biases)
+                                                                 (car bias-proc)))
+                                            )))
                                   (add-neuron-outputs! network result)
                                   result))
       input))
@@ -200,11 +220,13 @@
   "calc the output of a static network"
   (with-slots ((weights weights)
                (biases biases)
+               (input-proc input-proc)
+               (bias-proc bias-proc)
                (summers summers)
                (transfers transfers)
                (neuron-outputs neuron-outputs)) network
     (setf neuron-outputs nil)
-    (cascaded-forward-output! network weights biases summers transfers input-vector)))
+    (cascaded-forward-output! network weights biases input-proc bias-proc summers transfers input-vector)))
 
 (defgeneric normalize-weight! (network nth-layer &optional normalized-len)
   (:documentation "normalize the weights matrix of the nth-layer of a static network so that all the rows have the same length")
