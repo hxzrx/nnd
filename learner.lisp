@@ -170,6 +170,10 @@
   (with-slots ((neuron-outputs neuron-outputs)) network
     (setf neuron-outputs nil)))
 
+(defmethod get-neuron-outputs ((network static-network) layer-id)
+  (with-slots ((neuron-outputs neuron-outputs)) network
+    (nth layer-id neuron-outputs)))
+
 (defmethod add-neuron-outputs! ((network static-network) output)
   (with-slots ((neuron-outputs neuron-outputs)) network
     (setf neuron-outputs (append neuron-outputs (list output)))))
