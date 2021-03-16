@@ -2,15 +2,15 @@
 
 ;;;; transpose
 (defgeneric transpose (m)
-  (:documentation "transposing of a matrix"))
-
-(defmethod transpose ((m list))
+  (:documentation "transposing of a matrix")
+  (:method ((m list))
   "transposing a matrix"
-  (apply #'mapcar #'list m))
-
-(defmethod transpose ((m real))
+    (apply #'mapcar #'list m))
+  (:method ((m (eql nil)))
+    nil)
+  (:method ((m real))
   "transpose(m) = m"
-  m)
+    m))
 
 
 ;;;; basic list +-*/
