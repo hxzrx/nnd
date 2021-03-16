@@ -2,6 +2,23 @@
 
 ;;;; Chapter 16 (Chinese Edition), Radial Basis Networks
 
+(defun linear-least-squares (input-vecs targets &optional (rho 0))
+  "this assumes that a target is a scalar, so targets is a list of numbers"
+  (let* ((input-rank (length (first input-vecs)))
+         (input-num (length input-vecs))
+         (reg-matrix (make-augmented (loop for input in input-vecs ;regression matrix
+                                           append (transpose input))
+                                     (make-ones input-num 1)))
+         (reg-matrix^T (transpose reg-matrix))
+         (target-vector (transpose (list targets))))
+    (reduce #'matrix-product
+            (matrix-inverse (matrix-add (matrix-product reg-matrix^T reg-matrix)
+                                        (matrix-product rho (eye (1+ input-rank)))))
+            reg-matrix^T
+            target-vector)))
+
+
+
 
 
 
