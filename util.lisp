@@ -575,7 +575,7 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
   (:method ((matrix list) (center list) (radius integer))
     "for m * n matrix where center is the list of row and col subscripts of the center element of the matrix"
     (let ((size (matrix-size matrix)))
-      (neighbour% (list (car size) (cdr size)) center radius)))
+      (neighbor% (list (car size) (cdr size)) center radius)))
   (:method ((matrix list) (center integer) (radius integer))
     "for center is the i-th element in the matrix, center should between 0 and (m * n -1)"
     (let* ((size (matrix-size matrix))
@@ -610,3 +610,11 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
                              (loop for y from (- center-col i) to (+ center-col i)
                                    when (and (>= y 0) (< y cols))
                                      collect (+ (* x cols) y))))))
+
+(defun make-layer-weights-from-list (param-list rows cols)
+  "make an rows*cols matrix and cols*1 vector from a list of numbers"
+  (from-list param-list rows cols))
+
+(defun make-layer-biases-from-list (param-list rows cols)
+  "make an rows*cols matrix and cols*1 vector from a list of numbers"
+  (from-list param-list rows cols))
