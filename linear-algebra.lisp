@@ -603,8 +603,8 @@
         collect (loop for col below n
                       collect (if (= row col) 1 0))))
 
-(defmethod eye-p% (matrix idx &optional (epsilon 0.000001))
-  "for real matrix"
+(defmethod eye-p% (matrix idx &optional (epsilon 0.001))
+  "for real matrix, when epsilon is too small, the result will not stable"
   (if (null matrix) t
       (and (list-given-place-1-others-0 (car matrix) idx 0 epsilon)
            (eye-p% (cdr matrix) (1+ idx) epsilon))))
