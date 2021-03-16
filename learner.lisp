@@ -178,6 +178,12 @@
   (with-slots ((neuron-outputs neuron-outputs)) network
     (setf neuron-outputs (append neuron-outputs (list output)))))
 
+(defmethod query-layer-weight-size ((network static-network) layer-id)
+  (with-slots ((neurons neurons)) network
+    (list (nth (1+ layer-id) neurons)
+          (nth layer-id neurons))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun weight-op-input (weight input op)
