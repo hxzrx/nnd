@@ -596,9 +596,11 @@
 
 (defmethod from-list ((lst list) (rows integer) (cols integer))
   "make a `rows' * `cols' matrix whose elements are in `lst'"
-  (loop for i from 0 below rows
-        collect (loop for j from 0 below cols
-                      append (list (pop lst)))))
+  (if (and (= rows 1) (= cols 1))
+      (first lst)
+      (loop for i from 0 below rows
+            collect (loop for j from 0 below cols
+                          append (list (pop lst))))))
 
 (defgeneric eye (n)
   (:documentation "make an identity matrix with rank n"))
