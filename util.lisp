@@ -615,6 +615,6 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
   "make an rows*cols matrix and cols*1 vector from a list of numbers"
   (from-list param-list rows cols))
 
-(defun make-layer-biases-from-list (param-list rows cols)
+(defun make-layer-biases-from-list (param-list rows)
   "make an rows*cols matrix and cols*1 vector from a list of numbers"
-  (from-list param-list rows cols))
+  (from-list param-list rows 1))
