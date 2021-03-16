@@ -1,6 +1,6 @@
 (in-package #:nnd)
 
-(defparameter *epsilon* 0.00001)
+(defparameter *epsilon* 0.0001)
 
 (defclass learner ()
   ((name :initarg :name
@@ -120,12 +120,22 @@
                (transfers transfers)) network
     (when (null neurons) ;initialize neurons from weights
       (setf neurons (neurons-from-weights weights)))
-    (when (null biases)
+    ;;biases
+    (if (null biases)
       (if weights
           (setf biases (neurons-to-random-biases neurons 0 0))
-          (setf biases (neurons-to-random-biases neurons -0.5 0.5))))
-    (when (null weights) ;initialize with random matrices
-      (setf weights (neurons-to-random-weights neurons -0.5 0.5)))
+          (setf biases (neurons-to-random-biases neurons -0.5 0.5)))
+      ;;in some cases such as rbf network, the 2nd layer's parameter would be generated when running the algorithm
+      (when (< (length weights) (1- (length neurons)))
+          (dotimes (i (- (length neurons) (length weights) 1))
+            (nconc biases (list nil)))))
+    ;;weights
+    (if (null weights) ;initialize with random matrices
+        (setf weights (neurons-to-random-weights neurons -0.5 0.5))
+        ;;in some cases such as rbf network, the 2nd layer's parameter would be generated when running the algorithm
+        (when (< (length weights) (1- (length neurons)))
+          (dotimes (i (- (length neurons) (length weights) 1))
+              (nconc weights (list nil)))))
     (when (null input-proc)
       (setf input-proc (loop for n in (cdr neurons)
                              collect :*)))
@@ -143,7 +153,7 @@
                (input-proc input-proc)
                (bias-proc bias-proc)
                (transfers transfers)) network
-    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&input-proc: ~{~s~^ ~}~&bias-proc: ~{~s~^ ~}~&transfers:~{~d~^ ~}~&"
+    (format nil "neurons: ~d~&weights:~&~{~d~^~&~}~&biases:~{~d~^~&~}~&input-proc: ~{~S~^ ~}~&bias-proc: ~{~S~^ ~}~&transfers:~{~d~^ ~}~&"
             neurons
             weights
             (loop for b in biases collect (transpose b))
@@ -183,6 +193,16 @@
     (list (nth (1+ layer-id) neurons)
           (nth layer-id neurons))))
 
+(defmethod set-layer-parameters-from-list ((network static-network) layer-id element-list)
+  (with-slots ((weights weights)
+               (biases biases)) network
+    (let* ((size (query-layer-weight-size network layer-id))
+           (rows (first size))
+           (cols (second size))
+           (weight (make-layer-weights-from-list element-list rows cols))
+           (bias (make-layer-biases-from-list (nthcdr (* rows cols) element-list) rows)))
+      (setf (nth layer-id weights) weight)
+      (setf (nth layer-id biases) bias))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -200,7 +220,7 @@
     (:.* (element-wise-mul Wp bias))))
 
 (defun cascaded-forward-output! (network weights biases input-proc bias-proc transfers input)
-  (if weights
+  (if (remove nil weights) ;for cases when some layer's weights were not initialized
       (cascaded-forward-output! network
                                 (cdr weights)
                                 (cdr biases)
