@@ -236,6 +236,23 @@
                                   result))
       input))
 
+(defun cascaded-forward-partial-output (network weights biases input-proc bias-proc transfers input output-layer-id
+                                        &optional (current-layer-id 0))
+  (if (and weights (<= current-layer-id output-layer-id))
+      (cascaded-forward-partial-output network
+                                       (cdr weights)
+                                       (cdr biases)
+                                       (cdr input-proc)
+                                       (cdr bias-proc)
+                                       (cdr transfers)
+                                       (funcall (car transfers)
+                                                (Wp-op-bias (weight-op-input (car weights) input (car input-proc))
+                                                            (car biases)
+                                                            (car bias-proc)))
+                                       output-layer-id
+                                       (1+ current-layer-id))
+      input))
+
 (defmethod static-network-output! ((network static-network) input-vector)
   "calc the output of a static network"
   (with-slots ((weights weights)
@@ -246,6 +263,15 @@
                (neuron-outputs neuron-outputs)) network
     (setf neuron-outputs nil)
     (cascaded-forward-output! network weights biases input-proc bias-proc transfers input-vector)))
+
+(defmethod static-network-partial-output ((network static-network) input-vector output-layer-id)
+  "onle execute to the specified layer, and return the neuron output of this layer"
+  (with-slots ((weights weights)
+               (biases biases)
+               (input-proc input-proc)
+               (bias-proc bias-proc)
+               (transfers transfers)) network
+    (cascaded-forward-partial-output network weights biases input-proc bias-proc transfers input-vector output-layer-id)))
 
 (defgeneric normalize-weight! (network nth-layer &optional normalized-len)
   (:documentation "normalize the weights matrix of the nth-layer of a static network so that all the rows have the same length")
