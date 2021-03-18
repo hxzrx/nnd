@@ -111,16 +111,48 @@ h-collector getf from calc-inner-product-to-target"
     (format t "~&result: ~d~&" res)
     res))
 
+(defun calc-h-optimal (orthed-m target-vector)
+  "$h_i^* = m_i^T / (m_i^T m_i)$"
+  (/ (inner-product orthed-m target-vector)
+     (inner-product target-vector target-vector)))
+
+(defun calc-layer-parameters (bf-collector r-jk target-vector)
+  "equation (16.57), $x_n = h_n$ and $x_k = Sigma_{j=k+1}^n r_{j,k}x_j$.
+since $h_i^* = m_i^T / (m_i^T m_i)$, h can be induced from bf-collector.
+Notice: there seems to be an erra in the textbook , Sigma_{j=k+1}^n r_{j,k}x_j should be Sigma_{j=k+1}^n r_{k,j}x_j
+r-jk was calculated in orthogonal-least-squares"
+  (format t "~%<calc-layer-parameters>~&bf-collector:~&~d~&r-jk:~&~d~%" bf-collector r-jk)
+  (let* ((parameter-num (1- (length bf-collector))) ;n
+         (parameter-plist (list parameter-num
+                                (calc-h-optimal (fourth (find parameter-num bf-collector :key #'first)) ;x
+                                                target-vector))))
+    (loop for k from (1- parameter-num) downto 0
+          do (setf (getf parameter-plist k)
+                   (- (calc-h-optimal (fourth (find k bf-collector :key #'first))
+                                      target-vector)
+                      (loop for j from (1+ k) to parameter-num
+                            sum (let ((rjk (second (find (list k j) r-jk :key #'first :test #'equal)))
+                                      (xj (getf parameter-plist j)))
+                                  (format t "~&parameter-plist: ~d~%" parameter-plist)
+                                  (format t "~&k = ~d, j = ~d, r_jk: ~d, x_j: ~d~%" k j rjk xj)
+                                  (format t "~&rjk*xj=~d~%" (* (second (find (list k j) r-jk :key #'first :test #'equal))
+                                                               (getf parameter-plist j)))
+                                  (* (second (find (list k j) r-jk :key #'first :test #'equal))
+                                     (getf parameter-plist j)))))))
+    parameter-plist))
+
+
 
 
 (defun orthogonal-least-squares (reg-matrix target-vector &optional (delta 0.05))
-  "this assumes that a target is a scalar, so targets is a list of numbers.
+  "page 340, this assumes that a target is a scalar, so targets is a list of numbers.
 reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
 "
   (let* (;(tᵀt (matrix-product (transpose target-vector) target-vector))
          (bf-collector (list (calc-initial-basis reg-matrix target-vector))) ; (list 0 i o u)
          (r-jk nil)
-         (contribute-list (list (third (first bf-collector)))))
+         (contribute-list (list (third (first bf-collector))))
+         (layer-parameters nil))
     (format t "~&Begin to loop k.~%")
     (loop for k from 1 to (length reg-matrix)
           do (progn (let* ((r (calc-inner-product-to-orthed-vectors reg-matrix bf-collector))
@@ -132,24 +164,27 @@ reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
                            (max-o-index (first (first o-sort))) ;i_k
                            )
                       (format t "~%-----k = ~d---------~&" k)
-                      ;(format t "~&r:~&~d~%" r)
+                      (format t "~&r:~&~d~%" r)
                       ;(format t "~&m:~&~d~%" m)
                       ;(format t "~&h:~&~d~%" h)
                       ;(format t "~&o:~&~d~%" o)
                       ;(format t "~&max-o:~&~d~%" max-o)
-                      ;(format t "~&max-o-index:~&~d~%" max-o-index)
+                      (format t "~&max-o-index: ~d~%" max-o-index)
                       (push max-o contribute-list)
                       ;(format t "~&contribute-list: ~d~%" contribute-list)
                       (loop for j from 0 to (- k 1)
-                            do (push (list j k (third (find (list max-o-index j) r
-                                                            :key #'(lambda (seq) (subseq seq 0 2))
-                                                            :test #'equal)))
+                            do (push (list (list j k) (second (find (list max-o-index j) r
+                                                             :key #'first
+                                                             :test #'equal)))
                                      r-jk))
+                      (format t "~&k=~d, r-jk:~&~d~%" k r-jk)
                       (nconc bf-collector (list (list k max-o-index max-o (second (find max-o-index m :key #'first))) ))
                       (when (<= (- 1 (reduce #'+ contribute-list)) delta)
                         (format t "~&Get stop criteria: ~f, at k = ~f, delta = ~f~&contribute: ~{~f~^ ~}~%" (- 1 (reduce #'+ contribute-list)) k delta contribute-list)
                         (return-from nil)))))
-    bf-collector))
+    (setf layer-parameters (calc-layer-parameters bf-collector r-jk target-vector))
+    (format t "~&layer-parameters: ~d~%" layer-parameters)
+    (values bf-collector layer-parameters)))
 
 
 
@@ -231,7 +266,7 @@ It is note that when reading numbers(regressian matrix) as floats, either single
                                   (1        1        1        1        1))))
          ;;(rdf-layer-id 0)
          ;;(lin-layer-id 1)
-         (ols-result (orthogonal-least-squares reg-matrix target-vector 1e-15)))
+         (ols-result (orthogonal-least-squares reg-matrix target-vector 0.05)))
     ;;(format t "Initial network:~&~d~%~%" network)
     (format t "OLS result:~&~d~%" ols-result)
     ))
