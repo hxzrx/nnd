@@ -137,7 +137,8 @@ r-jk was calculated in orthogonal-least-squares"
 
 (defun orthogonal-least-squares (reg-matrix target-vector &optional (delta 0.05))
   "page 340, this assumes that a target is a scalar, so targets is a list of numbers.
-reg-matrix is U in the algorithm, target-vector is t in the algorithm, t = Ux + e
+reg-matrix is U in the algorithm, target-vector is t in the algorithm, t = Ux + e.
+Note that delta should not be too small, else the sum of o's will exceed 1.
 "
   (let* ((bf-collector (list (calc-initial-basis reg-matrix target-vector))) ; (list 0 i o u)
          (r-jk nil)
