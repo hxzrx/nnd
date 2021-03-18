@@ -326,6 +326,7 @@
   (cons 1 1))
 
 (defgeneric matrix-elements-num (matrix)
+  (:documentation "how elements in the matrix")
   (:method ((matrix list))
     (let ((size (matrix-size matrix)))
       (* (car size) (cdr size))))
