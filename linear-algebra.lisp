@@ -325,6 +325,13 @@
   "Return a cons (rows . cols). If m is not rectangle, return nil."
   (cons 1 1))
 
+(defgeneric matrix-elements-num (matrix)
+  (:method ((matrix list))
+    (let ((size (matrix-size matrix)))
+      (* (car size) (cdr size))))
+  (:method ((matrix number))
+    1))
+
 ;;;; ith row of a matrix
 (defgeneric nth-row (matrix nth)
   (:documentation "return the nth row of matrix, return a list, '((1 2 3))"))
