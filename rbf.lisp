@@ -29,6 +29,7 @@
                            (h (/ (matrix-product mᵀ target-vector) mᵀm))
                            (tᵀt (matrix-product (transpose target-vector) target-vector))
                            (o (/ (* h h mᵀm) tᵀt)))
+                      (format t "~&loop i: ~d, mᵀm: ~d, h: ~d, tᵀt: ~d, o: ~d~%" i mᵀm h tᵀt o)
                       (push (list 0 i o u) bf-collector))))
     (setf bf-collector (reverse bf-collector))
     (format t "Init bf-collector: ~d~%" bf-collector)
@@ -121,7 +122,7 @@ reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
          (r-jk nil)
          (contribute-list (list (third (first bf-collector)))))
     (format t "~&Begin to loop k.~%")
-    (loop for k from 1 below (length reg-matrix)
+    (loop for k from 1 to (length reg-matrix)
           do (progn (let* ((r (calc-inner-product-to-orthed-vectors reg-matrix bf-collector))
                            (m (calc-candidate-orth-vectors reg-matrix bf-collector r))
                            (h (calc-inner-product-to-target m target-vector))
@@ -145,8 +146,8 @@ reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
                                                             :test #'equal)))
                                      r-jk))
                       (nconc bf-collector (list (list k max-o-index max-o (second (find max-o-index m :key #'first))) ))
-                      (when (< (- 1 (reduce #'+ contribute-list)) delta)
-                        (format t "~&Get stop criteria: ~d, at k = ~d~%" (- 1 (reduce #'+ contribute-list)) k)
+                      (when (<= (- 1 (reduce #'+ contribute-list)) delta)
+                        (format t "~&Get stop criteria: ~f, at k = ~f, delta = ~f~&contribute: ~{~f~^ ~}~%" (- 1 (reduce #'+ contribute-list)) k delta contribute-list)
                         (return-from nil)))))
     bf-collector))
 
@@ -205,7 +206,9 @@ note that there are differences between the results of this demo with those in t
     network))
 
 (defun example-P16.1-page-344 ()
-  "Chinese Edition"
+  "Chinese Edition, an example of OLS algorithm.
+It is note that when reading numbers(regressian matrix) as floats, either single or double, there would be the case that the stopping creteria 1 - Sigma(o_j) < 0 (about -0.05) after calculated all o's, but when treating them as rational numbers, the results were precisely 1 - Sigma(o_j) = 0.
+"
   (let* (#+:ignore(network (make-static-network :neurons (list 1 5 1)
                                        ;;:weights (list '((-2) (0) (2)))
                                        ;;:biases (list '((0.5) (0.5) (0.5)))
@@ -220,9 +223,15 @@ note that there are differences between the results of this demo with those in t
                                   (0.105 0.368 0.779 1.000 0.779)
                                   (0.018 0.105 0.368 0.779 1.000)
                                   (1.000 1.000 1.000 1.000 1.000))))
+         #+:ignore(reg-matrix (transpose '((1        779/1000 368/1000 105/1000  18/1000)
+                                  (779/1000 1        779/1000 368/1000 105/1000)
+                                  (368/1000 779/1000 1        779/1000 368/1000)
+                                  (105/1000 368/1000 779/1000 1        779/1000)
+                                  (18/1000  105/1000 368/1000 779/1000 1)
+                                  (1        1        1        1        1))))
          ;;(rdf-layer-id 0)
          ;;(lin-layer-id 1)
-         (ols-result (orthogonal-least-squares reg-matrix target-vector)))
+         (ols-result (orthogonal-least-squares reg-matrix target-vector 1e-15)))
     ;;(format t "Initial network:~&~d~%~%" network)
     (format t "OLS result:~&~d~%" ols-result)
     ))
