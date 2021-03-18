@@ -2,14 +2,16 @@
 
 ;;;; Chapter 16 (Chinese Edition), Radial Basis Networks
 
-#+:ignore
-(defmethod make-regression-matrix ((network static-network) input-vector-list &optional (rbf-layer-id 0))
-  "regression matrix U = augment([a1 a2 ... aQ], ones(Q,1)"
-  (let* ((output (loop for input in input-vector-list
-                       collect (first (transpose (static-network-partial-output network input rbf-layer-id)))))
-         (cols (1+ (length input-vector-list)))
-         (reg-matrix (append output (make-ones 1 cols))))
-    reg-matrix))
+(defun calc-bias (weights)
+  "equation (16.9) $b_i^1 = Sqrt(S^1) / d_max$, it is still not clear what the d_max is"
+  (if (listp weights)
+      (/ (sqrt (length weights))
+         (first (sort (loop for v1 in weights
+                            for v2 in (cdr weights)
+                            collect (distance (list v1) (list v2)))
+                      #'>)))
+      1))
+
 (defun make-ols-regression-matrix (input-vectors)
   (let ((weights (loop for input in input-vectors
                        collect (if-typep-let (row (transpose input)) #'numberp
@@ -161,7 +163,7 @@ r-jk was calculated in orthogonal-least-squares"
 
 (defun orthogonal-least-squares (reg-matrix target-vector &optional (delta 0.05))
   "page 340, this assumes that a target is a scalar, so targets is a list of numbers.
-reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
+reg-matrix is U in the algorithm, target-vector is t in the algorithm, t = Ux + e
 "
   (let* (;(tᵀt (matrix-product (transpose target-vector) target-vector))
          (bf-collector (list (calc-initial-basis reg-matrix target-vector))) ; (list 0 i o u)
@@ -199,7 +201,7 @@ reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
                         (return-from nil)))))
     (setf layer-parameters (calc-layer-parameters bf-collector r-jk target-vector))
     (format t "~&layer-parameters: ~d~%" layer-parameters)
-    (values bf-collector layer-parameters)))
+    (list bf-collector layer-parameters)))
 
 
 
@@ -209,6 +211,7 @@ reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
 ;;;; examples and exercises
 
 (defun demo-page-330 ()
+  "demonstrates rbd network's output"
   (let ((network (make-static-network :neurons (list 1 2 1)
                                       :weights (list '((-1) (1)) '((1 1)))
                                       :biases (list '((2) (2)) 0)
@@ -221,6 +224,7 @@ reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
           do (format t "~%Input: ~d~&Output:~&~d~%" in (static-network-output! network in)))))
 
 (defun demo-page-332 ()
+  "a pattern classifying example demonstrates rbd network's output"
   (let ((network (make-static-network :neurons (list 2 2 1)
                                       :weights (list '((-1 1) (1 -1)) '((2 2)))
                                       :biases (list '((1) (1)) -1)
@@ -280,40 +284,59 @@ It is note that when reading numbers(regressian matrix) as floats, either single
                                   (18/1000  105/1000 368/1000 779/1000 1)
                                            (1        1        1        1        1))))
          (reg-matrix (make-ols-regression-matrix inputs))
-         ;;(rdf-layer-id 0)
-         ;;(lin-layer-id 1)
          (ols-result (orthogonal-least-squares reg-matrix target-vector 0.05)))
-    ;;(format t "Initial network:~&~d~%~%" network)
     (format t "OLS result:~&~d~%" ols-result)
     ))
 
-(defun example-P16.3-page-347 ()
-  "Chinese Edition, an example of OLS algorithm.
-It is note that when reading numbers(regressian matrix) as floats, either single or double, there would be the case that the stopping creteria 1 - Sigma(o_j) < 0 (about -0.05) after calculated all o's, but when treating them as rational numbers, the results were precisely 1 - Sigma(o_j) = 0.
-"
-  (let* ((network (make-static-network :neurons (list 1 1 1)
-                                       :weights (list '((0 -2)))
-                                       :biases (list 1)
+(defun example-P16.1-page-344-plus (&optional (inputs '(-1 -0.5 0 0.5 1)))
+  "the first steps are the same as the previous example, but this example will update the parameters after ols,
+and return the network with new parameters"
+  (let* ((target-vector (transpose '((-1 0 1 0 -1))))
+         (input-rank (if (numberp (first inputs))
+                                1
+                                (length (first inputs))))
+         (reg-matrix (make-ols-regression-matrix inputs))
+         (ols-result (orthogonal-least-squares reg-matrix target-vector 0.05))
+         (bf-collector (first ols-result))
+         (optimal-parameter-plist (second ols-result))
+         (optimal-parameters (loop for i from 0 below (/ (length optimal-parameter-plist) 2) ;sort by property
+                                   collect (getf optimal-parameter-plist i)))
+         (weight-layer-rbf (loop for bf in bf-collector
+                                 append (transpose (fourth bf))))
+         (bias-layer-rbf (matrix-product (make-ones (length weight-layer-rbf) 1)
+                                         (calc-bias weight-layer-rbf)))
+         (weight-layer-lin (make-layer-weights-from-list optimal-parameters
+                                                         1 ;currently only for one neuron
+                                                         (car (matrix-size weight-layer-rbf))))
+         (bias-layer-lin (if (> (- (length optimal-parameters) (matrix-elements-num weight-layer-lin)) 0)
+                             (make-layer-biases-from-list (nthcdr (matrix-elements-num weight-layer-lin)
+                                                                  optimal-parameters)
+                                                          1))))
+    (make-static-network :neurons (list input-rank (length weight-layer-rbf) (length weight-layer-lin))
+                         :weights (list weight-layer-rbf weight-layer-lin)
+                         :biases (list bias-layer-rbf bias-layer-lin)
+                         :input-proc (list :|dist| :*)
+                         :bias-proc (list :.* :+)
+                         :transfers (list #'radbas #'purelin))
+    ))
+
+(defun exercise-E16.3-page-349 ()
+  (let* ((network (make-static-network :neurons (list 1 2 1)
+                                       :weights (list '((-1) (1)))
+                                       :biases (list '((0.5) (0.5)) '((0)))
                                        :input-proc (list :|dist| :*)
                                        :bias-proc (list :.* :+)
                                        :transfers (list #'radbas #'purelin)))
-         (inputs '(-1 -0.5 0 0.5 1))
-         (target-vector (transpose '((-1 0 1 0 -1))))
-         (reg-matrix (transpose '((1.000 0.779 0.368 0.105 0.018)
-                                  (0.779 1.000 0.779 0.368 0.105)
-                                  (0.368 0.779 1.000 0.779 0.368)
-                                  (0.105 0.368 0.779 1.000 0.779)
-                                  (0.018 0.105 0.368 0.779 1.000)
-                                  (1.000 1.000 1.000 1.000 1.000))))
-         #+:ignore(reg-matrix (transpose '((1        779/1000 368/1000 105/1000  18/1000)
-                                  (779/1000 1        779/1000 368/1000 105/1000)
-                                  (368/1000 779/1000 1        779/1000 368/1000)
-                                  (105/1000 368/1000 779/1000 1        779/1000)
-                                  (18/1000  105/1000 368/1000 779/1000 1)
-                                  (1        1        1        1        1))))
-         ;;(rdf-layer-id 0)
-         ;;(lin-layer-id 1)
-         (ols-result (orthogonal-least-squares reg-matrix target-vector 0.05)))
-    ;;(format t "Initial network:~&~d~%~%" network)
-    (format t "OLS result:~&~d~%" ols-result)
-    ))
+         (inputs '(1 0 -1))
+         (targets '(-1 0 1))
+         (rdf-layer-id 0)
+         (lin-layer-id 1)
+         (neuron-outputs (loop for in in inputs
+                               collect (static-network-partial-output network in rdf-layer-id)))
+         ;;(rho 0)
+         (rho 4)
+         (optimal-parameters (linear-least-squares neuron-outputs targets rho)))
+    (format t "Initial network:~&~d~%~%" network)
+    (format t "Optimal parameters: ~d~%" optimal-parameters)
+    (set-layer-parameters-from-list network lin-layer-id (first (transpose optimal-parameters)))
+    network))
