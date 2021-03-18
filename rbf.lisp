@@ -2,6 +2,23 @@
 
 ;;;; Chapter 16 (Chinese Edition), Radial Basis Networks
 
+#+:ignore
+(defmethod make-regression-matrix ((network static-network) input-vector-list &optional (rbf-layer-id 0))
+  "regression matrix U = augment([a1 a2 ... aQ], ones(Q,1)"
+  (let* ((output (loop for input in input-vector-list
+                       collect (first (transpose (static-network-partial-output network input rbf-layer-id)))))
+         (cols (1+ (length input-vector-list)))
+         (reg-matrix (append output (make-ones 1 cols))))
+    reg-matrix))
+(defun make-ols-regression-matrix (input-vectors)
+  (let ((weights (loop for input in input-vectors
+                       collect (if-typep-let (row (transpose input)) #'numberp
+                                             (list row)
+                                             (first row)))))
+    (transpose (append (loop for input in input-vectors
+                             append (transpose (radbas (dist weights input))))
+                       (make-ones 1 (length input-vectors))))))
+
 (defun linear-least-squares (input-vecs targets &optional (rho 0))
   "this assumes that a target is a scalar, so targets is a list of numbers"
   (let* ((input-rank (length (first input-vecs)))
@@ -142,8 +159,6 @@ r-jk was calculated in orthogonal-least-squares"
     parameter-plist))
 
 
-
-
 (defun orthogonal-least-squares (reg-matrix target-vector &optional (delta 0.05))
   "page 340, this assumes that a target is a scalar, so targets is a list of numbers.
 reg-matrix is U in the algorithm, target-vetor is t in the algorithm, t = Ux + e
@@ -250,7 +265,39 @@ It is note that when reading numbers(regressian matrix) as floats, either single
                                        :input-proc (list :|dist| :*)
                                        :bias-proc (list :.* :+)
                                        :transfers (list #'radbas #'purelin)))
-         ;;(inputs '(-1 -0.5 0 0.5 1))
+         (inputs '(-1 -0.5 0 0.5 1))
+         (target-vector (transpose '((-1 0 1 0 -1))))
+         #+:ignore(reg-matrix (transpose '((1.000 0.779 0.368 0.105 0.018)
+                                  (0.779 1.000 0.779 0.368 0.105)
+                                  (0.368 0.779 1.000 0.779 0.368)
+                                  (0.105 0.368 0.779 1.000 0.779)
+                                  (0.018 0.105 0.368 0.779 1.000)
+                                  (1.000 1.000 1.000 1.000 1.000))))
+         #+:ignore(reg-matrix (transpose '((1        779/1000 368/1000 105/1000  18/1000)
+                                  (779/1000 1        779/1000 368/1000 105/1000)
+                                  (368/1000 779/1000 1        779/1000 368/1000)
+                                  (105/1000 368/1000 779/1000 1        779/1000)
+                                  (18/1000  105/1000 368/1000 779/1000 1)
+                                           (1        1        1        1        1))))
+         (reg-matrix (make-ols-regression-matrix inputs))
+         ;;(rdf-layer-id 0)
+         ;;(lin-layer-id 1)
+         (ols-result (orthogonal-least-squares reg-matrix target-vector 0.05)))
+    ;;(format t "Initial network:~&~d~%~%" network)
+    (format t "OLS result:~&~d~%" ols-result)
+    ))
+
+(defun example-P16.3-page-347 ()
+  "Chinese Edition, an example of OLS algorithm.
+It is note that when reading numbers(regressian matrix) as floats, either single or double, there would be the case that the stopping creteria 1 - Sigma(o_j) < 0 (about -0.05) after calculated all o's, but when treating them as rational numbers, the results were precisely 1 - Sigma(o_j) = 0.
+"
+  (let* ((network (make-static-network :neurons (list 1 1 1)
+                                       :weights (list '((0 -2)))
+                                       :biases (list 1)
+                                       :input-proc (list :|dist| :*)
+                                       :bias-proc (list :.* :+)
+                                       :transfers (list #'radbas #'purelin)))
+         (inputs '(-1 -0.5 0 0.5 1))
          (target-vector (transpose '((-1 0 1 0 -1))))
          (reg-matrix (transpose '((1.000 0.779 0.368 0.105 0.018)
                                   (0.779 1.000 0.779 0.368 0.105)
