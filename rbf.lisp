@@ -37,7 +37,6 @@
 
 (defun calc-initial-basis (reg-matrix target-vector)
   "the return result is the the element in basis function collector with the maximum contrbute, bf-collector is a list whose element is (list 0 basis-id basis-vector contribute), basis-vector is m vector in the algorithm, 0 denotes the 0th orthed vector"
-  (format t "~%<calc-initial-basis>~&")
   (let* ((inputs-num (length reg-matrix))
          (bf-collector nil))
     (loop for i from 0 to inputs-num
@@ -48,11 +47,8 @@
                            (h (/ (matrix-product mᵀ target-vector) mᵀm))
                            (tᵀt (matrix-product (transpose target-vector) target-vector))
                            (o (/ (* h h mᵀm) tᵀt)))
-                      (format t "~&loop i: ~d, mᵀm: ~d, h: ~d, tᵀt: ~d, o: ~d~%" i mᵀm h tᵀt o)
                       (push (list 0 i o u) bf-collector))))
     (setf bf-collector (reverse bf-collector))
-    (format t "Init bf-collector: ~d~%" bf-collector)
-    (format t "select result: ~d~%" (first (sort bf-collector #'> :key #'third)))
     (first (sort bf-collector #'> :key #'third))))
 
 (defun sum-contributes% (bf-collect)
@@ -62,10 +58,7 @@
 (defun calc-inner-product-to-orthed-vectors (reg-matrix bf-collector)
   "calc $r_{j,k}^{(i)}$ for k = (length bf-collector), here, k is fixed, i and j are indices.
 bf-collector was initialized in calc-initial-basis"
-  (format t "~%<calc-inner-product-to-orthed-vectors>r_{j,k}^{(i)}~&")
   (let ((Q (length reg-matrix)))
-        ;(k (length bf-collector)))
-    (format t "~&bf-collector: ~d~%" bf-collector)
     (let ((res
             (loop for i from 0 to Q
                   for ux in (transpose reg-matrix) ;(list ux) is uᵀ, so u is (transpose (list ux))
@@ -76,15 +69,11 @@ bf-collector was initialized in calc-initial-basis"
                                  (let ((j (first bf)))
                                    (list (list i j) (/ (matrix-product (list ux) (fourth bf))
                                                        (inner-product-self (fourth bf)))))))))
-      (format t "res: ~d~&" res)
       res)))
 
 (defun calc-candidate-orth-vectors (reg-matrix bf-collector r-collector)
   "calc $m_k^{(i)}$ for k = (length bf-collectr)"
-  (format t "~%<calc-candidate-orth-vectors>m_k^{(i)}~&")
   (let ((Q (length reg-matrix)))
-    ;;(k (length bf-collector)))
-    ;;(format t "~&bf-collector: ~d~%" bf-collector)
     (let ((res (loop for i from 0 to Q
           for ux in (transpose reg-matrix) ;(list ux) is uᵀ, so u is (transpose (list ux))
           when (null (find i bf-collector :key #'second))
@@ -100,34 +89,26 @@ bf-collector was initialized in calc-initial-basis"
                                                                             r-collector
                                                                             :key #'first
                                                                             :test #'equal)))))))))))
-      (format t "~&result: ~d~%" res)
       res)))
 
 (defun calc-inner-product-to-target (candidate-orth-vecs target-vector)
     "calc $h_k^{(i)}$ for k = (length bf-collector), here, k is fixed, i is the index.
 candidate-orth-vecs gets from calc-candidate-orth-vectors"
-  (format t "~%<calc-inner-product-to-target>h_k^{(i)}~%")
-  (format t "~&candidate:~&~d~&target-vec: ~d~%" candidate-orth-vecs target-vector)
   (let ((res (loop for (i m) in candidate-orth-vecs
                    collect
                    (list i (/ (inner-product m target-vector)
                               (inner-product m m))))))
-    (format t "~&result: ~d~%" res)
     res))
 
 (defun calc-contributes (candidate-orth-vecs h-collector target-vector)
   "calc $o_k^{(i)}$ for k = (length bf-collector), here, k is fixed, i is the index.
 candidate-orth-vecs gets from calc-candidate-orth-vectors,
 h-collector getf from calc-inner-product-to-target"
-  (format t "~%<calc-contributes>o_k^{(i)}~%")
-  ;;(format t "~&candidate-orth-vecs:~&~d~%" candidate-orth-vecs)
-  ;;(format t "~&h-collector:~&~d~%" h-collector)
   (let* ((tᵀt (inner-product-self target-vector))
          (res
            (loop for (i h) in h-collector
                  collect (list i
                                (/ (* h h (inner-product-self (second (find i candidate-orth-vecs :key #'first)))) tᵀt)))))
-    (format t "~&result: ~d~&" res)
     res))
 
 (defun calc-h-optimal (orthed-m target-vector)
@@ -140,7 +121,6 @@ h-collector getf from calc-inner-product-to-target"
 since $h_i^* = m_i^T / (m_i^T m_i)$, h can be induced from bf-collector.
 Notice: there seems to be an erra in the textbook , Sigma_{j=k+1}^n r_{j,k}x_j should be Sigma_{j=k+1}^n r_{k,j}x_j
 r-jk was calculated in orthogonal-least-squares"
-  (format t "~%<calc-layer-parameters>~&bf-collector:~&~d~&r-jk:~&~d~%" bf-collector r-jk)
   (let* ((parameter-num (1- (length bf-collector))) ;n
          (parameter-plist (list parameter-num
                                 (calc-h-optimal (fourth (find parameter-num bf-collector :key #'first)) ;x
@@ -150,14 +130,8 @@ r-jk was calculated in orthogonal-least-squares"
                    (- (calc-h-optimal (fourth (find k bf-collector :key #'first))
                                       target-vector)
                       (loop for j from (1+ k) to parameter-num
-                            sum (let ((rjk (second (find (list k j) r-jk :key #'first :test #'equal)))
-                                      (xj (getf parameter-plist j)))
-                                  (format t "~&parameter-plist: ~d~%" parameter-plist)
-                                  (format t "~&k = ~d, j = ~d, r_jk: ~d, x_j: ~d~%" k j rjk xj)
-                                  (format t "~&rjk*xj=~d~%" (* (second (find (list k j) r-jk :key #'first :test #'equal))
-                                                               (getf parameter-plist j)))
-                                  (* (second (find (list k j) r-jk :key #'first :test #'equal))
-                                     (getf parameter-plist j)))))))
+                            sum (* (second (find (list k j) r-jk :key #'first :test #'equal))
+                                     (getf parameter-plist j))))))
     parameter-plist))
 
 
@@ -165,12 +139,10 @@ r-jk was calculated in orthogonal-least-squares"
   "page 340, this assumes that a target is a scalar, so targets is a list of numbers.
 reg-matrix is U in the algorithm, target-vector is t in the algorithm, t = Ux + e
 "
-  (let* (;(tᵀt (matrix-product (transpose target-vector) target-vector))
-         (bf-collector (list (calc-initial-basis reg-matrix target-vector))) ; (list 0 i o u)
+  (let* ((bf-collector (list (calc-initial-basis reg-matrix target-vector))) ; (list 0 i o u)
          (r-jk nil)
          (contribute-list (list (third (first bf-collector))))
          (layer-parameters nil))
-    (format t "~&Begin to loop k.~%")
     (loop for k from 1 to (length reg-matrix)
           do (progn (let* ((r (calc-inner-product-to-orthed-vectors reg-matrix bf-collector))
                            (m (calc-candidate-orth-vectors reg-matrix bf-collector r))
@@ -180,21 +152,12 @@ reg-matrix is U in the algorithm, target-vector is t in the algorithm, t = Ux + 
                            (max-o (second (first o-sort)))
                            (max-o-index (first (first o-sort))) ;i_k
                            )
-                      (format t "~%-----k = ~d---------~&" k)
-                      (format t "~&r:~&~d~%" r)
-                      ;(format t "~&m:~&~d~%" m)
-                      ;(format t "~&h:~&~d~%" h)
-                      ;(format t "~&o:~&~d~%" o)
-                      ;(format t "~&max-o:~&~d~%" max-o)
-                      (format t "~&max-o-index: ~d~%" max-o-index)
                       (push max-o contribute-list)
-                      ;(format t "~&contribute-list: ~d~%" contribute-list)
                       (loop for j from 0 to (- k 1)
                             do (push (list (list j k) (second (find (list max-o-index j) r
                                                              :key #'first
                                                              :test #'equal)))
                                      r-jk))
-                      (format t "~&k=~d, r-jk:~&~d~%" k r-jk)
                       (nconc bf-collector (list (list k max-o-index max-o (second (find max-o-index m :key #'first))) ))
                       (when (<= (- 1 (reduce #'+ contribute-list)) delta)
                         (format t "~&Get stop criteria: ~f, at k = ~f, delta = ~f~&contribute: ~{~f~^ ~}~%" (- 1 (reduce #'+ contribute-list)) k delta contribute-list)
@@ -202,9 +165,6 @@ reg-matrix is U in the algorithm, target-vector is t in the algorithm, t = Ux + 
     (setf layer-parameters (calc-layer-parameters bf-collector r-jk target-vector))
     (format t "~&layer-parameters: ~d~%" layer-parameters)
     (list bf-collector layer-parameters)))
-
-
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
