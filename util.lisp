@@ -618,3 +618,36 @@ eg. (explicit-partial-derivative (list #'sin #'sin) '(1 2) t)"
 (defun make-layer-biases-from-list (param-list rows)
   "make an rows*cols matrix and cols*1 vector from a list of numbers"
   (from-list param-list rows 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; IO, only for the case study data of the book
+
+(defun parse-number-string (str &optional (separator #\Space) (float-format 'double-float))
+  "parse a string of numbers separated by some character, read each as double float if it is a float, and return the list of numbers"
+  (let ((*read-default-float-format* float-format))
+    (with-input-from-string (s (if (eql separator #\Space)
+                                   str
+                                   (substitute #\Space separator str)))
+      (loop for rd = (read s nil :eof)
+            until (eq rd :eof)
+            collect rd))))
+
+(defun read-case-study-data (pathname)
+  "read case study data provided by the book's author, all the data are numerical data separated by spaces.
+This function reads the file line by line, and parse each line into a list of lisp's data, and finally return these lists."
+  (with-open-file (s pathname
+                     :direction :input
+                     :external-format :utf-8
+                     :if-does-not-exist nil)
+    (loop for line = (read-line s nil :eof)
+          until (eq line :eof)
+          collect (parse-number-string line))))
+
+(defun write-table-into-file (pathname data)
+  "write data into file, the format of `data' should be a list of lists"
+  (with-open-file (s pathname
+                     :direction :output
+                     :external-format :utf-8
+                     :if-exists :supersede
+                     :if-does-not-exist :create)
+    (format s "~{~{~d~^, ~}~&~}~%" data)))
