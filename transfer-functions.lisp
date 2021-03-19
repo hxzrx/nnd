@@ -155,6 +155,17 @@
   (:method ((net-output list))
     (collect-transfer #'radbas net-output)))
 
+;;;;softmax
+(defgeneric softmax(net-input)
+  (:documentation "$a_i=f(n_i)=exp(n_i) / Sigma_{j=1}^Sexp{(n_j)}$")
+  (:method ((net-input list))
+    (let* ((exps (loop for i in net-input
+                      collect (exp (first i))))
+           (exp-sum (reduce #'+ exps)))
+      (loop for i in exps
+            collect (list (/ i exp-sum)))))
+  (:method ((net-input number))
+    1))
 
 #+:ignore
 (defgeneric derivative (function-type)
