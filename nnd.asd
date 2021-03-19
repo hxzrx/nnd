@@ -34,4 +34,5 @@
                (:file "generalization")
                (:file "dynamic")
                (:file "competitive")
-               (:file "rbf")))
+               (:file "rbf")
+               (:file "case-study")))
