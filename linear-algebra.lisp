@@ -293,6 +293,26 @@
   (alexandria:when-let (matrices-removed-nil (remove nil matrices))
     (reduce #'matrix-add matrices-removed-nil)))
 
+(defgeneric matrix-dot-product (matrix1 matrix2)
+  (:documentation "matrix product element by element")
+  (:method ((matrix1 list) (matrix2 list))
+    (let ((size1 (matrix-size matrix1)))
+      (assert (equal size1 (matrix-size matrix2)))
+      (if (equal size1 (cons 1 1))
+          (* (caar matrix1) (caar matrix2))
+          (loop for row1 in matrix1
+                for row2 in matrix2
+                collect
+                (loop for elem1 in row1
+                      for elem2 in row2
+                      collect (* elem1 elem2))))))
+  (:method ((n1 number) (n2 number))
+    (* n1 n2)))
+
+(defun .* (matrix1 matrix2)
+  "matrix dot substract"
+  (matrix-dot-add matrix1 matrix2))
+
 ;;;; Element-wise op
 
 (defgeneric element-wise (matrix1 matrix2 op)
@@ -309,6 +329,7 @@
     (funcall op n1 n2)))
 
 (defun element-wise-add (matrix1 matrix2)
+  "the same as matrix-dot-add"
   (element-wise matrix1 matrix2 #'+))
 
 (defun element-wise-sub (matrix1 matrix2)
