@@ -344,6 +344,9 @@
 (defun element-wise-exp (matrix1 matrix2)
   (element-wise matrix1 matrix2 #'expt))
 
+(defun element-wise-self (matrix op)
+  (element-wise matrix matrix op))
+
 ;;;; inner product
 (defgeneric inner-product (a b)
   (:documentation "inner product of vector a and b"))
