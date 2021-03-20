@@ -564,6 +564,7 @@
     (if (eq n 1) 0 (loop for row below m
                          collect (loop for col below n
                                        collect 0)))))
+
 (defgeneric make-zero-vector (dimension)
   (:documentation "return a vector with all elements are 0")
   (:method ((dimension integer))
@@ -587,15 +588,26 @@
     (= n 0)))
 
 (defgeneric make-ones (m &optional n)
-  (:documentation "return a matrix which elements are all 1's. If n is nil, return a row vector such as '((1 1 1))"))
+  (:documentation "return a matrix which elements are all 1's. If n is nil, return a row vector such as '((1 1 1))")
+  (:method ((m integer) &optional (n 1))
+    "return a full zero matrix"
+    (loop for row below m
+          collect (loop for col below n
+                        collect 1)))
+  (:method ((m (eql 1)) &optional (n 1))
+    (if (eq n 1) 1 (loop for row below m
+                         collect (loop for col below n
+                                       collect 1)))))
 
-(defmethod make-ones ((m integer) &optional n)
-  "return a full zero matrix"
-  (if (null n)
-     (list (loop for i below m collect 1))
-      (loop for row below m
-            collect (loop for col below n
-                          collect 1))))
+(defgeneric make-ones-from-template (template-matrix)
+  (:method ((template-matrix list))
+    (let* ((rank (matrix-size template-matrix))
+           (rows (car rank))
+           (cols (cdr rank)))
+      (make-ones rows cols)))
+  (:method ((template-matrix number))
+    1))
+
 
 (defgeneric make-rows (&rest rows)
   (:documentation "make a row vector with the provided parameters"))
