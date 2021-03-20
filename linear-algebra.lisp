@@ -165,6 +165,10 @@
   (:method ((n1 number) (n2 number))
     (- n1 n2)))
 
+(defun .- (matrix1 matrix2)
+  "matrix dot substract"
+  (matrix-dot-add matrix1 matrix2))
+
 ;;;; matrix subtraction
 (defgeneric matrix-sub (matrix1 matrix2)
   (:documentation "m1 - m2")
