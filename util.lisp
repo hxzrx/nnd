@@ -207,7 +207,7 @@ note that some part will get nil if iss ratio is too small"
       (average% (cdr lst) (matrix-add sum (car lst)) (+ num 1))))
 
 (defmethod average ((lst list))
-  "average for a list of numbers or a list matrices"
+  "average for a list of numbers or a list of column vectors"
   (if (numberp (first lst))
       (average% lst 0 0)
       (average% lst (make-zeros-from-template (first lst)) 0)))
@@ -222,15 +222,27 @@ note that some part will get nil if iss ratio is too small"
         (/ (+ (nth (- (/ n 2) 1) sorted) (nth (/ n 2) lst)) 2)
         (nth (/ (- n 1) 2) lst))))
 
-(defun variance (lst &optional (square-sum 0) (num 0))
+(defmethod variance% ((lst list) mean squared-sum num)
+  "should be called only by average"
   (if (null lst)
-      (/ square-sum num)
-      (variance (cdr lst)
-                (+ square-sum (* (car lst) (car lst)))
-                (+ num 1))))
+      (matrix-divide-scalar squared-sum (1- num))
+      (variance% (cdr lst)
+                 mean
+                 (matrix-add squared-sum (element-wise-self (matrix-sub (car lst) mean) #'*))
+                 (+ num 1))))
 
-(defun standard-variance (lst)
-  (expt (variance lst) 0.5))
+(defmethod variance ((lst list) mean)
+  "variance for a list of numbers or a list of column vectors"
+  (if (numberp mean)
+      (variance% lst mean 0 0)
+      (variance% lst mean (make-zeros-from-template mean) 0)))
+
+(defun standard-variance (var)
+  (if (numberp var)
+      (sqrt var)
+      (loop for row in var
+            collect (loop for element in row
+                          collect (sqrt element)))))
 
 (defun neurons-from-weights (weights)
   "for a R-S¹-S²-...-Sᴹ network, return (list R S¹ S² ... Sᴹ) when the network's weights is given"
