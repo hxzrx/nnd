@@ -199,10 +199,18 @@ note that some part will get nil if iss ratio is too small"
   (successive-property-list-p lst :test #'>=))
 
 ;;;; some statistic functions
-(defun average (lst &optional (sum 0) (num 0))
+
+(defmethod average% ((lst list) sum num)
+  "should be called only by average"
   (if (null lst)
-      (/ sum num)
-      (average (cdr lst) (+ sum (car lst)) (+ num 1))))
+      (matrix-product sum (/ 1 num))
+      (average% (cdr lst) (matrix-add sum (car lst)) (+ num 1))))
+
+(defmethod average ((lst list))
+  "average for a list of numbers or a list matrices"
+  (if (numberp (first lst))
+      (average% lst 0 0)
+      (average% lst (make-zeros-from-template (first lst)) 0)))
 
 (defun mean (lst)
   (average lst))
@@ -651,3 +659,29 @@ This function reads the file line by line, and parse each line into a list of li
                      :if-exists :supersede
                      :if-does-not-exist :create)
     (format s "~{~{~d~^, ~}~&~}~%" data)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; data preprocessing
+
+(defun list-compare-and-replace (list1 list2 &key test (key #'identity))
+  "compare two lists element by element, if the elements test passed, replaced the element in list1 with the respected element in list2"
+  (loop for a1 in list1
+        for a2 in list2
+        collect (if (funcall test (funcall key a2) (funcall key a1))
+                    a2
+                    a1)))
+
+(defgeneric matrix-compare-and-replace (matrix1 matrix2 &key test key)
+  (:documentation "compare element by element, and replace the element in the 1st matric with the one in the 2nd")
+  (:method ((matrix1 list) (matrix2 list) &key test (key #'identity))
+    (loop for row1 in matrix1
+          for row2 in matrix2
+          collect (list-compare-and-replace row1 row2 :test test :key key)))
+  (:method ((n1 real) (n2 real) &key test (key #'identity))
+    (if (funcall test (funcall key n2) (funcall key n1)) n2 n1)))
+
+(defun normalize (data &optional (min-scale -1)  (max-scale 1))
+  "data can be either a list of numbers or a list of vctors"
+  (let ((min (
+  (loop for datum in data
+        collect (matrix-
