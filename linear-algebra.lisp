@@ -152,13 +152,16 @@
 (defgeneric matrix-dot-add (matrix1 matrix2)
   (:documentation "matrix add element by element")
   (:method ((matrix1 list) (matrix2 list))
-    (assert (equal (matrix-size matrix1) (matrix-size matrix2)))
-    (loop for row1 in matrix1
-          for row2 in matrix2
-          collect
-          (loop for elem1 in row1
-                for elem2 in row2
-                collect (- elem1 elem2))))
+    (let ((size1 (matrix-size matrix1)))
+      (assert (equal size1 (matrix-size matrix2)))
+      (if (equal size1 (cons 1 1))
+          (- (caar matrix1) (caar matrix2))
+          (loop for row1 in matrix1
+                for row2 in matrix2
+                collect
+                (loop for elem1 in row1
+                      for elem2 in row2
+                      collect (- elem1 elem2))))))
   (:method ((n1 number) (n2 number))
     (- n1 n2)))
 
