@@ -149,6 +149,19 @@
     " n + '((m)), only for 1 by 1 matrix"
     (matrix-add matrix n)))
 
+(defgeneric matrix-dot-add (matrix1 matrix2)
+  (:documentation "matrix add element by element")
+  (:method ((matrix1 list) (matrix2 list))
+    (assert (equal (matrix-size matrix1) (matrix-size matrix2)))
+    (loop for row1 in matrix1
+          for row2 in matrix2
+          collect
+          (loop for elem1 in row1
+                for elem2 in row2
+                collect (- elem1 elem2))))
+  (:method ((n1 number) (n2 number))
+    (- n1 n2)))
+
 ;;;; matrix subtraction
 (defgeneric matrix-sub (matrix1 matrix2)
   (:documentation "m1 - m2")
