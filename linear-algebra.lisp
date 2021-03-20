@@ -195,6 +195,27 @@
     (assert (equal (matrix-size matrix) (cons 1 1)))
     (matrix-sub matrix n)))
 
+(defgeneric matrix-dot-sub (matrix1 matrix2)
+  (:documentation "matrix substract element by element")
+  (:method ((matrix1 list) (matrix2 list))
+    (let ((size1 (matrix-size matrix1)))
+      (assert (equal size1 (matrix-size matrix2)))
+      (if (equal size1 (cons 1 1))
+          (- (caar matrix1) (caar matrix2))
+          (loop for row1 in matrix1
+                for row2 in matrix2
+                collect
+                (loop for elem1 in row1
+                      for elem2 in row2
+                      collect (- elem1 elem2))))))
+  (:method ((n1 number) (n2 number))
+    (- n1 n2)))
+
+(defun .- (matrix1 matrix2)
+  "matrix dot substract"
+  (matrix-dot-sub matrix1 matrix2))
+
+
 ;;;; matrix multiply a scalar
 (defgeneric matrix-multiple-scalar (matrix n)
   (:documentation " matrix * number")
