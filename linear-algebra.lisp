@@ -569,6 +569,15 @@
   (:method ((dimension integer))
     (make-zeros dimension)))
 
+(defgeneric make-zeros-from-template (template-matrix)
+  (:method ((template-matrix list))
+    (let* ((rank (matrix-size template-matrix))
+           (rows (car rank))
+           (cols (cdr rank)))
+      (make-zeros rows cols)))
+  (:method ((template-matrix number))
+    0))
+
 (defgeneric matrix-zeros-p (matrix)
   (:documentation "check if the matrix's elemets are all zeros")
   (:method ((matrix list))
