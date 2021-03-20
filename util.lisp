@@ -680,18 +680,22 @@ This function reads the file line by line, and parse each line into a list of li
   (:method ((n1 real) (n2 real) &key test (key #'identity))
     (if (funcall test (funcall key n2) (funcall key n1)) n2 n1)))
 
-(defun normalize (data &optional (min-scale -1)  (max-scale 1))
+(defun normalization (data-list &optional (min-scale -1)  (max-scale 1))
   "p' = ((p - p_min) ./ (p_max - p_min) * range) + shift
 data can be either a list of numbers or a list of vctors"
   ;can be more effifient in a recursion
-  (let* ((min-vec (reduce #'(lambda (m1 m2) (matrix-compare-and-replace m1 m2 :test #'<)) data))
-         (max-vec (reduce #'(lambda (m1 m2) (matrix-compare-and-replace m1 m2 :test #'>)) data))
+  (let* ((min-vec (reduce #'(lambda (m1 m2) (matrix-compare-and-replace m1 m2 :test #'<)) data-list))
+         (max-vec (reduce #'(lambda (m1 m2) (matrix-compare-and-replace m1 m2 :test #'>)) data-list))
          (max-min-vec (matrix-sub max-vec min-vec))
          (scale-range (- max-scale min-scale))
-         (ones (make-ones-from-template (first data)))
+         (ones (make-ones-from-template (first data-list)))
          (shift (matrix-product min-scale ones)))
-    (loop for datum in data
+    (loop for datum in data-list
           collect (matrix-add shift
                               (matrix-product
                                scale-range
                                (element-wise-div (matrix-sub datum min-vec) max-min-vec))))))
+
+(defun standardization (data-list)
+  "p' = (p - p_mean) ./ p_std"
+  )
