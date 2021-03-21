@@ -26,6 +26,7 @@
                (:file "linear-algebra")
                (:file "transfer-functions")
                (:file "learner")
+               (:file "hebb")
                (:file "perception")
                (:file "performance")
                (:file "widrow-hoff")
