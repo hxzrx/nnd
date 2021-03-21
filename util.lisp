@@ -232,19 +232,21 @@ note that some part will get nil if iss ratio is too small"
                  (+ num 1))))
 
 (defmethod variance ((lst list))
-  "variance for a list of numbers or a list of column vectors"
-  (let ((mean (mean list)))
+  "variance for a list of numbers or a list of column vectors, returns multiple values, var and mean"
+  (let ((mean (mean lst)))
     (if (numberp mean)
-        (variance% lst mean 0 0)
-        (variance% lst mean (make-zeros-from-template mean) 0))))
+        (values (variance% lst mean 0 0) mean)
+        (values (variance% lst mean (make-zeros-from-template mean) 0) mean))))
 
 (defun standard-variance (lst)
-  (let ((var (variance lst)))
+  "returns multiple values, std-var and mean"
+  (multiple-value-bind (var mean) (variance lst)
     (if (numberp var)
-        (sqrt var)
-        (loop for row in var
-              collect (loop for element in row
-                            collect (sqrt element))))))
+        (values (sqrt var) mean)
+        (values (loop for row in var
+                      collect (loop for element in row
+                                    collect (sqrt element)))
+                mean))))
 
 (defun neurons-from-weights (weights)
   "for a R-S¹-S²-...-Sᴹ network, return (list R S¹ S² ... Sᴹ) when the network's weights is given"
@@ -271,6 +273,16 @@ note that some part will get nil if iss ratio is too small"
   "make a list of biases the neurons are provided for each layer, this function is used in initializing a network randomly"
   (loop for (row nil) in (restore-matrices-rank neurons)
         collect (rand-matrix row 1 min max)))
+
+(defun widrow-nguyen-random-weights (neurons)
+  "set the magnitude of the weights in the first layer so that the linear region of each sigmoid function covers 1/S1 of the range of the input"
+  (let ((1/input-dimension (/ 1 (first neurons)))
+        (first-layer-neurons (second neurons)))
+    (loop for (row col) in (restore-matrices-rank neurons)
+          collect (rand-matrix row col
+                               (* -0.7 (expt first-layer-neurons 1/input-dimension))
+                               (* 0.7 (expt first-layer-neurons 1/input-dimension))))))
+
 
 (defun column-vector-to-list (vec)
   "convert a column vector to a list, if vec is a number, return the number itself"
