@@ -231,18 +231,20 @@ note that some part will get nil if iss ratio is too small"
                  (matrix-add squared-sum (element-wise-self (matrix-sub (car lst) mean) #'*))
                  (+ num 1))))
 
-(defmethod variance ((lst list) mean)
+(defmethod variance ((lst list))
   "variance for a list of numbers or a list of column vectors"
-  (if (numberp mean)
-      (variance% lst mean 0 0)
-      (variance% lst mean (make-zeros-from-template mean) 0)))
+  (let ((mean (mean list)))
+    (if (numberp mean)
+        (variance% lst mean 0 0)
+        (variance% lst mean (make-zeros-from-template mean) 0))))
 
-(defun standard-variance (var)
-  (if (numberp var)
-      (sqrt var)
-      (loop for row in var
-            collect (loop for element in row
-                          collect (sqrt element)))))
+(defun standard-variance (lst)
+  (let ((var (variance lst)))
+    (if (numberp var)
+        (sqrt var)
+        (loop for row in var
+              collect (loop for element in row
+                            collect (sqrt element))))))
 
 (defun neurons-from-weights (weights)
   "for a R-S¹-S²-...-Sᴹ network, return (list R S¹ S² ... Sᴹ) when the network's weights is given"
@@ -710,4 +712,7 @@ data can be either a list of numbers or a list of vctors"
 
 (defun standardization (data-list)
   "p' = (p - p_mean) ./ p_std"
-  )
+  (let* ((mean (mean data-list))
+         (std-var (standard-variance data-list))) ; calc mean twice
+    (loop for datum in data-list
+          collect (element-wise-div (matrix-sub datum mean) std-var))))
