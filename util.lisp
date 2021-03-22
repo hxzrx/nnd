@@ -734,7 +734,15 @@ data can be either a list of numbers or a list of vctors"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmethod zip ((lst1 list) (lst2 list) &optional res)
-  "zip two list pairwise"
+  "zip two list pairwise, eg. (zip '(a b c) '(1 2 3)) --> '(A 1 B 2 C 3)"
   (if (or (null lst1) (null lst2))
       res
       (zip (cdr lst1) (cdr lst2) (nconc res (list (car lst1) (car lst2))))))
+
+(defmethod unzip ((lst list) &optional keys vals)
+  "unzip a list, reversing of zip"
+  (if lst
+      (unzip (nthcdr 2 lst)
+             (push (first lst) keys)
+             (push (second lst) vals))
+      (list (reverse keys) (reverse vals))))
