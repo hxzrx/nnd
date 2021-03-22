@@ -276,10 +276,14 @@ config: (list (list :id 1 :dimension 3 :to-layer '(1)))"
 
 (defmethod add-network-input-to-layer ((layer lddn-layer) raw-input-plist)
   "add the network's raw inputs to the network-input's tdl"
+  ;;(format t "~&<add-network-input-to-layer>~&raw input: ~d~%" raw-input-plist)
   (with-slots ((input network-inputs)) layer
+    (format t "~&network-inputs: ~d~%" input)
     (loop for (lth-in tdl) in input
           do (alexandria:when-let (in-vec (getf raw-input-plist lth-in)) ;(in-vec (assoc lth-in raw-input-alist))
+               ;;(format t "~&add to tdl: ~d~%" in-vec)
                (add-tdl-content tdl in-vec)
+               ;;(format t "~&add to tdl successfully: ~d~%" tdl)
                ))))
 
 (defmethod layer-link-delay? ((layer-from lddn-layer) (layer-to lddn-layer))
@@ -698,7 +702,7 @@ Side effect: will modify net-input slot of `layer, will modify neuron-output slo
 (defmethod add-network-input-to-cache! ((lddn lddn) raw-input-plist)
   "add the network's raw inputs to the network-input-cache slot of lddn"
   (with-slots ((fifo-alist network-input-cache)) lddn
-    (loop for (id . input-vector) in (alexandria:plist-alist (first raw-input-plist))
+    (loop for (id . input-vector) in (alexandria:plist-alist raw-input-plist)
           do #+:ignore(add-fixed-fifo (second (assoc id fifo-alist)) input-vector)
           (addq (second (assoc id fifo-alist)) input-vector))))
 
@@ -732,11 +736,13 @@ and the result returned is a list of such plists."
 
 (defmethod calc-lddn-output! ((lddn lddn) input-plist)
   "calc the output of the lddn network providing a list of input vectors"
+  ;;(format t "~&<calc-lddn-output!>~&input: ~d~%" input-plist)
   (with-slots ((layers layers)
                (input-layers raw-input-layers)
                (output-layers final-output-layers)
                (simul-order simul-order)) lddn
     (dolist (id input-layers) ;send input vector to the raw input layers
+      ;;(format t "~&send input to layer: ~d~%" id)
       (add-network-input-to-layer (get-layer lddn id) input-plist)
       (add-network-input-to-cache! lddn input-plist))
     (dolist (layer-id simul-order)
@@ -1048,7 +1054,7 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
         ;;trancate some db here
         ;;(truncate-tabular-db! F/n-db)
 
-        (calc-lddn-output! lddn sample)
+        (calc-lddn-output! lddn (first sample))
         (calc-init-sens-insert-db! lddn time-step)
 
         (let* ((target (second sample))
@@ -1173,7 +1179,7 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
         (truncate-tabular-db! F/a-exp-db)
         (truncate-tabular-db! a/x-exp-db)
 
-        (calc-lddn-output! lddn sample) ;forward propagation to make an output and get the intermediate results
+        (calc-lddn-output! lddn (first sample)) ;forward propagation to make an output and get the intermediate results
         (calc-init-sens-insert-db! lddn) ;calc $S^{u,u}$ for all u
 
         (let* ((target (second sample))
@@ -1394,7 +1400,8 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                               (list :id 9 :w (list '((1/2 1/2)))))))))
 
 (defparameter lddn-config-graph-14.2 ;page 272
-  (list :input (list (list :id 1 :dimension 1 :to-layer '(1)))
+  (list :lddn-type :bptt
+        :input (list (list :id 1 :dimension 1 :to-layer '(1)))
         :output (list 1)
         :order '(1)
         :layer (list (list :id 1 :neurons 1 :transfer :purelin
@@ -1403,7 +1410,8 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
                                                       :w (list 1/3 1/3 1/3)))))))
 
 (defparameter lddn-config-graph-14.4 ;page 273
-  (list :input (list (list :id 1 :dimension 1 :to-layer '(1)))
+  (list :lddn-type :bptt
+        :input (list (list :id 1 :dimension 1 :to-layer '(1)))
         :output (list 1)
         :order '(1)
         :layer (list (list :id 1 :neurons 1 :transfer :purelin
@@ -1440,8 +1448,9 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
     (loop for i from 0 to 19
           do (progn
                (let* ((p (funcall square-wave))
-                      (network-input (list (list 1 p)))
-                      (network-output (calc-lddn-output! lddn network-input)))
+                      ;;(tmp (format t "~&square wave: ~d~%" p))
+                      (network-input (list (list 1 p) (list 1))) ;1 denotes the input id, independence of time series
+                      (network-output (calc-lddn-output! lddn (first network-input))))
                  (format t "~&~d, input: ~d, output: ~,3f~%" i p (cadar network-output)))))))
 
 (defun IIR-demo-lddn ()
@@ -1451,8 +1460,8 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
         (loop for i from 0 to 19
           do (progn
                (let* ((p (funcall square-wave))
-                      (network-input (list (list 1 p)))
-                      (network-output (calc-lddn-output! lddn network-input)))
+                      (network-input (list (list 1 p) (list 1)))
+                      (network-output (calc-lddn-output! lddn (first network-input))))
                      (format t "~&SERIES: ~d, input: ~d, output: ~,3f~%" i p (cadar network-output)))))))
 
 (defun IIR-demo ()
@@ -1479,8 +1488,8 @@ a/x-deriv-db (list :layer :time :type :to :from :delay :value)"
 (defun test-output-p14.2 ()
   "page 291"
   (let* ((lddn (make-lddn :config lddn-rtrl-config-p14.1))
-         (p '((1 ((1) (1) (1)) 1)))
-         (output (calc-lddn-output! lddn p)))
+         (p '((1 ((1) (1) (1))) (10 1)))
+         (output (calc-lddn-output! lddn (first p))))
     (format t "~&lddn's inputs: ~d~%" (inputs lddn))
     (format t "~&input-to: ~d~%" (input-to lddn))
     (format t "~&raw-input-layers: ~d~%" (raw-input-layers lddn))
