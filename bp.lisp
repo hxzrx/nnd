@@ -102,6 +102,15 @@
                              sum (if (numberp w) 2
                                      (layer-param-sum (matrix-size w))))))))
 
+(defmethod format-string ((network bp-network))
+  (with-slots ((neurons neurons)
+               (weights weights)
+               (biases biases)) network
+    (format nil "neurons:~&~d~&weights:~&~d~&biases:~&~d~%" neurons weights biases)))
+
+(defmethod print-object ((network bp-network) stream)
+  (print-unreadable-object (network stream :type t)
+        (format stream (format-string network))))
 
 ;;;; get the result of the network given the input and parameters
 (defgeneric propagation-forward-without-states (bp input)
@@ -176,8 +185,9 @@
 ;;(defgeneric sensitivity (bp ∂F target a m)
 ;;  (:documentation "sensicivity s = ∂F / ∂n"))
 
-(defmethod sensitivity-init (derivative net-inputs  target a)
+(defmethod sensitivity-init (derivative net-inputs target a)
   "for the last layer, sᴹ = -2 ∂Fᴹ(nᴹ) (t - a)"
+  ;(format t "~&<sensitivity-init>~&derivative: ~d~&net-inputs: ~d~&target: ~d~&a: ~d~%" derivative net-inputs target a)
   (let ((F^M (if (numberp net-inputs)
                  (funcall derivative net-inputs)
                  (diag-from-list (loop for n in net-inputs collect (funcall derivative n)))))
@@ -193,50 +203,49 @@
     (reduce #'matrix-product (list F^m (transpose weight+1) sensitivity+1))))
 
 (defgeneric backpropagation% (bp sample alpha)
-  (:documentation "back propagation for one sample"))
-
-(defmethod backpropagation% ((bp bp-network) (sample list) (alpha real))
+  (:documentation "back propagation for one sample")
+  (:method ((bp bp-network) (sample list) (alpha real))
   "back propagation for one sample"
-  (let* ((a (propagation-forward bp (list-to-vector (first sample))));propagation forward and collect the intermediate states
-         (new-weights nil)
-         (new-bias nil)
-         (weight-list (reverse (weights bp)))
-         (bias-list (reverse (biases bp)))
-         (input-list (inputs bp))
-         (net-input-list (net-inputs bp))
-         (dF (reverse (derivatives bp)))
-         (target (if (numberp (cadr sample)) (cadr sample) (transpose (list (cadr sample)))))
-         )
-    (do* ((idx (1- (length (weights bp))) (decf idx))
-          (next-weight nil (car cur-weights))
-          (cur-weights weight-list (cdr cur-weights))
-          (cur-bias (pop bias-list) (pop bias-list))
-          (input (pop input-list) (pop input-list))
-          (net-input (pop net-input-list) (pop net-input-list))
-          (derivative (pop dF) (pop dF))
-          (sensitivity (sensitivity-init derivative net-input target a)
-                       (when derivative (sensitivity-update derivative net-input next-weight sensitivity))))
-         ((= idx 0)
-          ;; as the body part of this do* has side effects, so we have to duplicate this piece of code that's original in the body, otherwise, the first lay' weight and bias will be lost
-          (push (matrix-sub (car cur-weights) (reduce #'matrix-product
-                                                      (list alpha
-                                                            sensitivity
-                                                            (if (numberp input) input (transpose input)))))
-                new-weights)
-          (push (matrix-sub cur-bias (matrix-product alpha sensitivity))
-                new-bias)
+    (let* ((a (propagation-forward bp (first sample)));propagation forward and collect the intermediate states
+           (new-weights nil)
+           (new-bias nil)
+           (weight-list (reverse (weights bp)))
+           (bias-list (reverse (biases bp)))
+           (input-list (inputs bp))
+           (net-input-list (net-inputs bp))
+           (dF (reverse (derivatives bp)))
+           (target (if (numberp (cadr sample)) (cadr sample) (transpose (list (cadr sample)))))
+           )
+      (do* ((idx (1- (length (weights bp))) (decf idx))
+            (next-weight nil (car cur-weights))
+            (cur-weights weight-list (cdr cur-weights))
+            (cur-bias (pop bias-list) (pop bias-list))
+            (input (pop input-list) (pop input-list))
+            (net-input (pop net-input-list) (pop net-input-list))
+            (derivative (pop dF) (pop dF))
+            (sensitivity (sensitivity-init derivative net-input target a)
+                         (when derivative (sensitivity-update derivative net-input next-weight sensitivity))))
+           ((= idx 0)
+            ;; as the body part of this do* has side effects, so we have to duplicate this piece of code that's original in the body, otherwise, the first lay' weight and bias will be lost
+            (push (matrix-sub (car cur-weights) (reduce #'matrix-product
+                                                        (list alpha
+                                                              sensitivity
+                                                              (if (numberp input) input (transpose input)))))
+                  new-weights)
+            (push (matrix-sub cur-bias (matrix-product alpha sensitivity))
+                  new-bias)
 
-          (setf (weights bp) new-weights)
-          (setf (biases bp) new-bias)
-          bp)
-      (push (matrix-sub (car cur-weights) (reduce #'matrix-product
-                                                  (list alpha
-                                                        sensitivity
-                                                        (if (numberp input) input (transpose input)))))
-            new-weights)
-      (push (matrix-sub cur-bias (matrix-product alpha sensitivity))
-            new-bias)
-      )))
+            (setf (weights bp) new-weights)
+            (setf (biases bp) new-bias)
+            bp)
+        (push (matrix-sub (car cur-weights) (reduce #'matrix-product
+                                                    (list alpha
+                                                          sensitivity
+                                                          (if (numberp input) input (transpose input)))))
+              new-weights)
+        (push (matrix-sub cur-bias (matrix-product alpha sensitivity))
+              new-bias)
+        ))))
 
 (defgeneric backpropagation (bp samples alpha)
   (:documentation "backpropagation for all the samples, update the parameters for each example"))
@@ -321,12 +330,13 @@ Then, the individual gradients would be averaged to get the total gradient."))
   "page 206, Chinese ed."
   (let ((bp (make-bp-network :weight-list '(((1 -1) (1 0)) ((1 1)))
                              :bias-list '(((1) (2)) 1)
-                             :transfer-list (list #'cube #'purelin)))
-        (p '((-1) (1))))
-    (propagation-forward-without-states bp p)
-    (propagation-forward bp p)
+                             :transfer-list (list #'cube #'purelin)
+                             :derivative-list (list :cube :purelin)))
+        (p '(((-1) (1)) -1)))
+    (format t "~&Initial network:~&~d~%" bp)
+    (propagation-forward-without-states bp (first p))
+    (propagation-forward bp (first p))
     (backpropagation% bp p 0.5)
-    #+:ignore(backpropagation% bp '(-1 1) 0.5) ;will not work
     ))
 
 (defun example-11.7 ()
@@ -334,6 +344,7 @@ Then, the individual gradients would be averaged to get the total gradient."))
   (let ((bp (make-bp-network :weight-list '(-1 -2)
                              :bias-list '(1 1)
                              :transfer-list (list #'tansig #'tansig))))
+    (format t "~&Initial network:~&~d~%" bp)
     (propagation-forward-without-states bp -1)
     (propagation-forward bp -1)))
 
@@ -345,8 +356,7 @@ Then, the individual gradients would be averaged to get the total gradient."))
         (p 1))
     (propagation-forward-without-states bp p)
     (propagation-forward bp p)
-    (format t "~&New weights: ~d~%" (weights bp))
-    (format t "~&New biases: ~d~%" (biases bp))))
+    bp))
 
 (defun example-11.2.3+ ()
   "page 186, Chinese ed."
@@ -358,7 +368,8 @@ Then, the individual gradients would be averaged to get the total gradient."))
                     (list -2 (1+ (sin (* (/ pi 4) -2))))
                     (list 2 (1+ (sin (* (/ pi 4) 2)))))))
     (backpropagation% bp (list 1 (1+ (sin (/ pi 4)))) 0.1)
-    (backpropagation  bp data 0.1)))
+    (backpropagation  bp data 0.1)
+    bp))
 
 (defun example-11.7 ()
   "page 198, Chinese ed."
@@ -368,7 +379,8 @@ Then, the individual gradients would be averaged to get the total gradient."))
                              :derivative-list (list :tansig :tansig)))
         (data (list -1 1))
         (alpha 1))
-    (backpropagation% bp data alpha)))
+    (backpropagation% bp data alpha)
+    bp))
 
 (defun exercise-11.25 ()
   "page 209, E11.25"
@@ -381,6 +393,7 @@ Then, the individual gradients would be averaged to get the total gradient."))
     ;;(dotimes (i 1000) (backpropagation bp data 0.2)) ;result correct
     (loop for (input target) in data
           do (format t "~&~f ~,3f ~,3f~%" input (propagation-forward-without-states bp input) target))
+    bp
     ))
 
 (defun example-12.1 ()
@@ -394,4 +407,5 @@ Then, the individual gradients would be averaged to get the total gradient."))
     (format t "~&gradients: ~d~%" (gradients-sum bp))
     (format t "~&sensitivities: ~d~%" (sensitivities bp))
     (format t "~&weights: ~,4f, biases: ~,4f~%" (car (weights bp)) (car (biases bp)))
+    bp
     ))
