@@ -208,7 +208,6 @@ The steps above get a row corresponding to one final output's component of parti
   (let* ((sensitivity (if (numberp marquardt-sensitivity) (list (list marquardt-sensitivity)) marquardt-sensitivity))
          (weight (if (numberp weights) (list (list weights)) weights))
          (input (if (numberp inputs) (list (list inputs)) inputs)))
-    (format t "~&begin cond.~%")
     (cond ((eq type :weight)
            (matrix-flatten
             (loop for sens-col in (transpose sensitivity) ;a column of sensitivity matrix corresponds to a row of Jacobian
