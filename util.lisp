@@ -410,7 +410,7 @@ eg. (data-generator-with-noise #'(lambda (x) (1+ (sin (* (/ pi 2) x)))) -2 2 5 #
   (noise-generator #'rand-between noise-min noise-max))
 
 (defun square-wave-generator (amplitude period)
-  "make an generator that produce discrete square wave, period should be an even integer"
+  "make an generator that produce discrete square wave, period should be an even integer(because time series should make timestep an integer and square wave has a half negative and a half positive)"
   (if (= (mod period 2) 1) (warn "the period should be an even number"))
   (let ((start -1))
     #'(lambda ()
