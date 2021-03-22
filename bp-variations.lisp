@@ -203,16 +203,23 @@ it's a matrix, not a column vector compared to bp's sensitivity"
 Second, flat this matrix and get an row vector.
 Third, append weights' Jacobian row vector and biases' Jacobian row vector and get an row vector.(This step is executed in other place.)
 The steps above get a row corresponding to one final output's component of partial derivative, so loop over the sensitivity matrix, we will get the full jacobian matrix' block on this layer."
+  (format t "~&<jacobian-block>~&sens:~&~d~&weights:~&~d~&inputs:~&~d~&type:~d~%"marquardt-sensitivity weights inputs type)
+  ;; there is a bad bug fixing, since in the later codes, I made matrix-product return a number when applying two 1*1 matrices. So in this function, bindings in let* convert the numbers into 1*1 matrices as well as that inside the loops make the codes ugly.
   (let* ((sensitivity (if (numberp marquardt-sensitivity) (list (list marquardt-sensitivity)) marquardt-sensitivity))
          (weight (if (numberp weights) (list (list weights)) weights))
          (input (if (numberp inputs) (list (list inputs)) inputs)))
+    (format t "~&begin cond.~%")
     (cond ((eq type :weight)
            (matrix-flatten
             (loop for sens-col in (transpose sensitivity) ;a column of sensitivity matrix corresponds to a row of Jacobian
                   collect (car (matrix-flatten
                                 (loop for w in weight
                                       for s in sens-col
-                                      collect (car (transpose (matrix-product s input)))))))))
+                                      ;;collect (car (transpose (matrix-product s input)))))))))
+                                      collect (car (transpose (if-typep-let (mp (matrix-product s input))
+                                                                            #'listp
+                                                                            mp
+                                                                            (list (list mp)))))))))))
           ((eq type :bias) (matrix-flatten (transpose sensitivity)))
           (t (error "Unknown type in function jacoban-block")))))
 
@@ -345,6 +352,7 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
                                  :transfer-list (list #'square #'purelin)
                                  :derivative-list (list :square :purelin)))
         (data '((1 1) (2 2))))
+    (format t "~&lmbp: ~d~%" lmbp)
     (format t "~&Jacobian matrix for the firse input ~d: ~d~%" (first data) (calc-jacobian!% lmbp (first data)))
     (format t "~&Jacobian matrix after one more input ~d: ~d~%" (second data) (calc-jacobian!% lmbp (second data)))
     ))
@@ -378,7 +386,7 @@ the side effect is to write into the jacobian slot of `lmbp, and will modify err
          (lmbp (make-lmbp-network :neuron-list (list 1 10 1)
                                   :transfer-list (list #'logsig #'purelin)
                                   :derivative-list (list :logsig :purelin)))
-         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 4) x)))) -2 2 11 :type )))
+         (data (data-generator-accurate #'(lambda (x) (1+ (sin (* (/ pi 4) x)))) -2 2 11 :type :uniform)))
     (declare (ignore sdbp))
     ;;(dotimes (i 10000) (backpropagation-batch sdbp data 0.1)) ;have unknown bugs
     (levenberg-marquardt-backpropagation lmbp data) ;LMBP, result correct
