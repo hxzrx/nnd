@@ -157,11 +157,13 @@
   (transpose (list (loop for f in ᐁF collect (apply f (car (transpose point)))))))
 
 (defgeneric matrix-flatten (m)
-  (:documentation "flatten a matrix and convert it to a row vector"))
+  (:documentation "flatten a matrix and convert it to a row vector")
+  (:method ((m list))
+    "eg. '((1 2) (3 4)) -》 '((1 2 3 4))"
+    (list (reduce #'append m)))
+  (:method ((m number))
+    m))
 
-(defmethod matrix-flatten ((m list))
-  "eg. '((1 2) (3 4)) -》 '((1 2 3 4))"
-  (list (reduce #'append m)))
 
 (defgeneric data-partition (data part-ratio)
   (:documentation "according to each part's ratio, partition `data into several parts"))
