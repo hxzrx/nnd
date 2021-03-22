@@ -180,7 +180,7 @@
         ((eq fun-type :square)   #'(lambda (x) (* 2 x)))
         ((eq fun-type :cube)     #'(lambda (x) (* 3 x x)))
         ((eq fun-type :radbas) #'(lambda (x) (* (exp (* -1 x x)) -2 x)))
-        (t (format t "Not implimented yet!"))))
+        (t (error "Not Impl the Derivative!"))))
 
 
 (defgeneric dist (weights vector)
