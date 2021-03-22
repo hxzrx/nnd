@@ -730,3 +730,11 @@ data can be either a list of numbers or a list of vctors"
          (std-var (standard-variance data-list))) ; calc mean twice
     (loop for datum in data-list
           collect (element-wise-div (matrix-sub datum mean) std-var))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmethod zip ((lst1 list) (lst2 list) &optional res)
+  "zip two list pairwise"
+  (if (or (null lst1) (null lst2))
+      res
+      (zip (cdr lst1) (cdr lst2) (nconc res (list (car lst1) (car lst2))))))
